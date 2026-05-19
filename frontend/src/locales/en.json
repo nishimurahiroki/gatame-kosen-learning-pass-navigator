@@ -1,0 +1,307 @@
+{
+  "app": {
+    "title": "Learning Path Navigator",
+    "subtitle": "Gatame Kosen Online — Personalized learning system",
+    "roadmapHeading": "Your learning roadmap",
+    "moduleCountSuffix": "modules",
+    "retakeAssessment": "← Retake assessment"
+  },
+  "common": {
+    "close": "Close",
+    "listJoin": " & ",
+    "emDash": "—",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "confirm": {
+    "retakeAssessment": {
+      "title": "Retake the assessment?",
+      "description": "Your current learning path will be cleared. Your module progress (completed steps and notes) will stay saved.",
+      "confirm": "Retake assessment"
+    },
+    "bbsMastered": {
+      "title": "Mark this rank as mastered?",
+      "description": "Your declaration is recorded permanently for this assessment and cannot be undone from the app.",
+      "confirm": "Yes, I've mastered it"
+    },
+    "annualMembership": {
+      "title": "Confirm your Annual Membership",
+      "description": "We will stop showing the upgrade prompt going forward. You can re-trigger it later via Profile if needed.",
+      "confirm": "Yes, I have it"
+    }
+  },
+  "bbsReminderTitle": "Already on a Monthly Plan?",
+  "bbsReminderText": "No additional one-time purchase is needed. You already have access to this curriculum!",
+  "errors": {
+    "learningPathFailed": "Could not load your learning path.",
+    "assessmentIncomplete": "Assessment data is incomplete.",
+    "feedbackSendFailed": "Failed to send feedback.",
+    "imageExportFailed": "Could not export the image. Try taking a screenshot instead.",
+    "pathGenerationCanceled": "Path generation canceled. You can try again anytime."
+  },
+  "toast": {
+    "feedbackSaveFailed": "Could not save your feedback. Completion is recorded locally.",
+    "todoSaveFailed": "Could not save the checklist update. Check your connection.",
+    "memoSaveFailed": "Could not save your notes. Check your connection."
+  },
+  "auth": {
+    "signUpEmailSent": {
+      "title": "Confirmation email sent",
+      "fromLabel": "From",
+      "fromName": "Supabase Auth",
+      "toLabel": "To",
+      "instruction": "Open that email, tap Confirm, then sign in here.",
+      "spamHint": "Not in inbox? Check spam — sender is Supabase Auth.",
+      "resend": "Resend email",
+      "resendCooldown": "Resend in {s}s",
+      "resendSuccess": "Sent again.",
+      "continue": "Sign In",
+      "close": "Close"
+    }
+  },
+  "sync": {
+    "retry": "Retry",
+    "pendingCount": "{n} unsaved",
+    "banner": {
+      "syncing": "Saving your progress to the cloud…",
+      "pending": "Some changes are not saved to the cloud yet",
+      "error": "Could not save progress to the cloud",
+      "offline": "You are offline — progress will sync when you are back online"
+    }
+  },
+  "api": {
+    "backendUnreachable": "Could not reach the backend. Start Spring Boot in `backend` (default port 8080), keep the frontend on `npm run dev`, and try again.",
+    "proxyFailed": "The request did not reach the backend via the proxy. Check that Spring Boot is listening on localhost:8080.",
+    "serverError": "A server error occurred (500).",
+    "checkBackendLogs": "Check the backend console logs.",
+    "badRequest": "The server could not accept the request (400).",
+    "requestRejected": "The server rejected the request payload (400).",
+    "requestCanceled": "Request canceled.",
+    "requestTimedOut": "Generating your path is taking longer than expected. Please try again."
+  },
+  "moduleCategories": {
+    "ukemi": "Basics · Ukemi",
+    "solo-newaza-workout": "Basics · Newaza",
+    "osaekomi": "Basics · Osaekomi",
+    "fundamental-tachi-waza": "Basics · Tachi-waza",
+    "kumikata-ai-yotsu": "Kumikata · Ai-yotsu",
+    "kumikata-kenka-yotsu": "Kumikata · Kenka-yotsu",
+    "break-gripping-ai-yotsu": "Kumikata · Grip breaks",
+    "break-gripping-kenka-yotsu": "Kumikata · Grip breaks",
+    "kansetsu-waza": "Techniques · Joint locks",
+    "shime-waza": "Techniques · Chokes",
+    "throwing": "Techniques · Throws",
+    "guard-pass-top": "Game · Guard",
+    "guard-pass-bottom": "Game · Guard",
+    "on-the-turtle": "Game · Turtle",
+    "escape-from-osaekomi": "Game · Escapes",
+    "shime-waza-transition": "Transitions · Chokes",
+    "kansetsu-waza-transition": "Transitions · Joint locks",
+    "osaekomi-transition": "Transitions · Osaekomi",
+    "fallback": "Module"
+  },
+  "recommendationRank": {
+    "dash": "—",
+    "topPick": "Top pick",
+    "highlyRecommended": "Highly recommended",
+    "recommended": "Recommended",
+    "standard": "Standard",
+    "supporting": "Supporting route"
+  },
+  "verticalPath": {
+    "noPath": "No shortest path can be displayed."
+  },
+  "moduleHints": {
+    "problemMatch": "This module aligns strongly with the challenges you picked. Picture real match moments and drill with intent.",
+    "default": "Watch the overview video, then build clean reps solo or in a small group."
+  },
+  "pathNode": {
+    "ariaLocked": "Locked",
+    "ariaWaiting": "Waiting",
+    "ariaCurrentGoal": "Current goal",
+    "ariaCompleted": "Completed",
+    "completeDoneTapUndo": "Completed · tap to undo",
+    "completePrereqHint": "Complete prerequisites to unlock",
+    "locked": "Locked",
+    "waiting": "Waiting",
+    "finishTodosInPanel": "Finish checklist in panel",
+    "markCompleted": "Mark as Completed"
+  },
+  "pathDrawer": {
+    "progress": "Progress",
+    "practiceChecklist": "Practice checklist (technique focus)",
+    "showMore": "Show more (+{n} remaining)",
+    "referenceVideo": "Reference video",
+    "unlockFullAccessCta": "Unlock Full Access (+150 Techniques)",
+    "watchVideoLoginCta": "Watch Video (Login)",
+    "recordInsights": "Record your insights!!",
+    "moduleMemoLabel": "Module notes",
+    "memoPlaceholder": "Note down the points you noticed or tips from your sensei.",
+    "memoSave": "Save",
+    "memoSaving": "Saving…",
+    "memoSaved": "Saved",
+    "memoUnsaved": "Unsaved",
+    "prereqForComplete": "Complete prerequisite modules to enable the completion button.",
+    "lockedByAssessment": "This step is locked based on your assessment results.",
+    "allTodosForComplete": "Check every item in the checklist to enable \"Mark as Completed\".",
+    "undoCompletion": "Undo completion",
+    "markStepCompleted": "Mark as Completed"
+  },
+  "feedback": {
+    "title": "Step completion feedback",
+    "moduleLine": "“{name}”",
+    "q1": "Question 1 (Required): How was the difficulty?",
+    "difficultyTooEasy": "Too Easy",
+    "difficultyJustRight": "Just Right",
+    "difficultyTooHard": "Too Hard",
+    "q2": "Question 2 (Required): How was the satisfaction?",
+    "satisfactionHint": "1 is low satisfaction, 5 is high.",
+    "starAria": "{n} out of 5 stars",
+    "q3": "Question 3 (Optional): Are there any specific techniques or videos you'd like to see added?",
+    "q3Placeholder": "e.g., Variations for transitions into pinning...",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "submitting": "Submitting…",
+    "closeOverlay": "Close"
+  },
+  "assessment": {
+    "heroTitle": "Let's build your path",
+    "questionProgress": "Question {current} / {total}",
+    "chooseOneHint": "Choose one option below.",
+    "q1Title": "Q1. Which best describes you right now?",
+    "q2InterestTitle": "Q2. Where do you want to put more emphasis in training?",
+    "q3PainsTitle": "Which technical challenge would you like to solve?",
+    "q3PainsHint": "Select your current struggles to customize your roadmap. You can pick multiple—or skip this step.",
+    "q2AltTitle": "What's your ideal fighting style?",
+    "q2AltHint": "There are no wrong answers—go with what resonates.",
+    "q5Title": "Define your ultimate goal for this path.",
+    "back": "← Back",
+    "next": "Next",
+    "finishGenerate": "Generate My Path",
+    "loadingTitle": "Generating your best path…",
+    "loadingSubtitle": "Scoring modules from your answers.",
+    "segments": [
+      {
+        "segment": "NOVICE",
+        "title": "Absolute Beginner",
+        "subtitle": "No martial arts experience."
+      },
+      {
+        "segment": "JUDO_BEGINNER",
+        "title": "Judo Student",
+        "subtitle": "White to Brown belt."
+      },
+      {
+        "segment": "BJJ_BEGINNER",
+        "title": "BJJ Practitioner",
+        "subtitle": "White to Blue belt."
+      },
+      {
+        "segment": "JUDO_ADVANCED",
+        "title": "Advanced Judoka",
+        "subtitle": "Black belt (Shodan) & above."
+      },
+      {
+        "segment": "BJJ_ADVANCED",
+        "title": "Elite BJJ Roller",
+        "subtitle": "Purple belt & above."
+      }
+    ],
+    "interests": [
+      {
+        "value": "JUDO",
+        "title": "Tachi-waza to Osaekomi",
+        "body": "Focus on throwing techniques and securing the pin."
+      },
+      {
+        "value": "BJJ",
+        "title": "Guard & Submission",
+        "body": "Focus on guard work, back takes, and finishing with joint locks or chokes."
+      },
+      {
+        "value": "MIX",
+        "title": "Full Transition",
+        "body": "Focus on the seamless flow from standing positions to ground fighting."
+      }
+    ],
+    "noviceVibes": [
+      {
+        "label": "投げたい",
+        "title": "Dynamic Throws",
+        "vibe": "Master the iconic Judo throws to achieve a clean Ippon."
+      },
+      {
+        "label": "抑え込み（Judo）",
+        "title": "Ground Control",
+        "vibe": "Learn to hold down an opponent so they cannot escape or attack."
+      },
+      {
+        "label": "極めたい",
+        "title": "Submission Arts",
+        "vibe": "Learn to finish the fight using joint locks and chokes."
+      },
+      {
+        "label": "連動性（Mix）",
+        "title": "Standing to Ground",
+        "vibe": "Learn the flow of taking an opponent down and finishing immediately."
+      }
+    ],
+    "goals": [
+      {
+        "goal": "課題解決",
+        "title": "Fix Your Weakness",
+        "body": "Solve specific technical bottlenecks in your daily training."
+      },
+      {
+        "goal": "BBS取得（黒帯を目指す）",
+        "title": "Gatame Kosen Mastery",
+        "body": "Master the full technical curriculum and earn your Black Belt."
+      },
+      {
+        "goal": "技術補完",
+        "title": "Fill the Gaps",
+        "body": "Complete your skill tree by adding missing techniques to your game."
+      },
+      {
+        "goal": "指導参考",
+        "title": "Curriculum for Coaches",
+        "body": "Learn how to structure and explain techniques to your students."
+      }
+    ]
+  },
+  "painPoints": {
+    "standing-flow-to-submission": {
+      "headline": "Throw to Submission",
+      "scenario": "I can't finish the fight on the ground immediately after a throw."
+    },
+    "pin-after-throw": {
+      "headline": "Pin Escapes",
+      "scenario": "Opponents always escape before I can solidify the Osaekomi."
+    },
+    "turtle-breakdown": {
+      "headline": "Flipping the Turtle",
+      "scenario": "I can't flip or breakdown a turtle opponent into a pin."
+    },
+    "guard-pass-from-top": {
+      "headline": "Guard Pass Struggles",
+      "scenario": "I can't pass their guard. I want to break their defense."
+    },
+    "guard-bottom-sweep-submit": {
+      "headline": "Guard Defense & Sweeps",
+      "scenario": "I don't want to be passed. I want to keep my guard and sweep them."
+    },
+    "grip-fight": {
+      "headline": "Gripping Battles",
+      "scenario": "I lose the gripping fight and can't start my own techniques."
+    },
+    "escape-osaekomi": {
+      "headline": "Drained by Pins",
+      "scenario": "I waste all my energy trying to escape from the bottom."
+    }
+  },
+  "difficulty": {
+    "BEGINNER": "Beginner",
+    "INTERMEDIATE": "Intermediate",
+    "ADVANCED": "Advanced"
+  }
+}

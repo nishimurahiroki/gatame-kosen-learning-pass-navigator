@@ -1,0 +1,107 @@
+/* React Flow のデフォルトスタイル（@import はファイル先頭に置く必要があります） */
+@import 'reactflow/dist/style.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gatame-midnight text-white font-sans;
+}
+
+@keyframes technique-node-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.technique-node-glow {
+  animation: technique-node-glow-pulse 2.4s ease-in-out infinite;
+}
+
+/** 垂直学習街道 · 畳イメージの薄ドット */
+.bg-learning-street {
+  background-color: rgba(10, 22, 40, 0.92);
+  background-image:
+    radial-gradient(rgba(201, 168, 76, 0.07) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      transparent 20%,
+      transparent 80%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  background-size:
+    16px 16px,
+    100% 100%;
+}
+
+@keyframes learning-street-active-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(201, 168, 76, 0.5),
+      0 0 28px rgba(201, 168, 76, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 12px rgba(201, 168, 76, 0),
+      0 0 36px rgba(201, 168, 76, 0.35);
+    transform: scale(1.06);
+  }
+}
+
+.learning-street-node-active {
+  animation: learning-street-active-pulse 2.2s ease-in-out infinite;
+}
+
+.path-node-active-ring {
+  animation: learning-street-active-pulse 2.2s ease-in-out infinite;
+}
+
+.path-trail-edge-cleared path {
+  animation: path-trail-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes path-trail-glow {
+  0%,
+  100% {
+    opacity: 0.82;
+    filter: drop-shadow(0 0 3px rgba(201, 168, 76, 0.35));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(201, 168, 76, 0.55));
+  }
+}
+
+.path-parallax-layer {
+  /* fixed だとビューポート全体を覆い、SkillMap 直上の roadmap 見出しに重なる */
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.path-parallax-dots {
+  background-color: rgba(10, 22, 40, 0.55);
+  background-image: radial-gradient(rgba(201, 168, 76, 0.09) 1.2px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+.path-parallax-tatami {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 52px,
+    rgba(255, 255, 255, 0.025) 52px,
+    rgba(255, 255, 255, 0.025) 54px
+  );
+  opacity: 0.65;
+}
