@@ -235,5 +235,23 @@ $$
 
 - 全テーブルに Row Level Security (RLS) を有効化。`auth.uid() = user_id` の条件でユーザーは自分のデータのみ操作可能。
 - フロントエンドは Supabase の anon key を使用。データは JWT で認証されたユーザーにのみ返る。
-#   g a t a m e - k o s e n - l e a r n i n g - p a s s - n a v i g a t o r  
- 
+
+## 7. Render（Docker）でバックエンド API
+
+Render は JVM をネイティブランタイムとして提供しないため、**Web Service の Language を Docker** にし、`backend/Dockerfile` でビルド・起動する。
+
+| Render 設定 | 値 |
+|--------------|-----|
+| Root Directory | `backend` |
+| Dockerfile Path | `Dockerfile` |
+| Build Command | （空で可。Dockerfile の `RUN mvn` でビルド） |
+| Start Command | （空で可。`ENTRYPOINT` で起動） |
+
+環境変数:
+
+| Key | 例 |
+|-----|-----|
+| `GATAME_CORS_ALLOWED_ORIGINS` | 通常は **未設定で可**（`application.yml` のデフォルトが本番 Vercel）。ローカルで API 単体起動する場合のみ `http://localhost:5173`（`backend/.env.example` 参照） |
+| `PORT` | Render が自動注入（手動不要） |
+
+`application.yml` の `server.port: ${PORT:8080}` と `gatame.cors.allowed-origins` の環境変数上書きに対応済み。

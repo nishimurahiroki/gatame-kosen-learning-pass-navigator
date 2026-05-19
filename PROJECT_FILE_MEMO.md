@@ -18,6 +18,12 @@
 - `backend/pom.xml`  
   Maven設定。Spring Boot / Java 21 / PostgreSQL / テスト依存関係を定義。
 
+- `backend/Dockerfile`  
+  Render 向け Docker マルチステージビルド（Maven → JRE 21）。`PORT` は Render が注入。
+
+- `backend/.dockerignore`  
+  Docker ビルドから `target/` 等を除外。
+
 - `backend/src/main/java/com/gatame/learningpass/GatameLearningPassApplication.java`  
   Spring Boot起動クラス（エントリーポイント）。
 
@@ -72,7 +78,10 @@
 ### resources
 
 - `backend/src/main/resources/application.yml`  
-  Spring設定（DB接続、CORS、`modules.json` 読み込みパスなど）。
+  Spring 設定。`server.port: ${PORT:8080}`（Render の `PORT`）、`gatame.cors.allowed-origins` は **本番 Vercel をデフォルト**、環境変数 `GATAME_CORS_ALLOWED_ORIGINS` で上書き（ローカル API 開発用）。`modules.json` パス、スコア係数など。
+
+- `backend/.env.example`  
+  ローカルでバックエンドのみ起動するときの CORS 用（`GATAME_CORS_ALLOWED_ORIGINS=http://localhost:5173`）。Spring は標準で `.env` を読まないため、IDE の環境変数か `export` で設定する。
 
 - `backend/src/main/resources/modules.json`  
   モジュール定義データ。初期スコアや関連情報を外部管理するためのJSON。
