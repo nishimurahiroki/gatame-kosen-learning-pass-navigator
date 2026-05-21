@@ -8,7 +8,13 @@ export const isSupabaseConfigured: boolean = Boolean(supabaseUrl) && Boolean(sup
 
 /** 未設定でも throw せず null を返し、上位で graceful にエラー画面へ倒す。 */
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
+  ? createClient(supabaseUrl as string, supabaseAnonKey as string, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   : null
 
 export const missingSupabaseEnvKeys: string[] = [

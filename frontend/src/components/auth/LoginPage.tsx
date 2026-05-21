@@ -1,80 +1,38 @@
 import { useCallback, useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
 import { GATAME_LOGO_SRC } from '../../constants/brandAssets'
-import { ghostGoldCtaClass } from '../../constants/brandTheme'
-import { readEmailFromQuery, stripEmailQueryParam } from '../../utils/emailQuery'
-import { dashboardUrl, redirectToDashboard } from '../../utils/authRoutes'
+import { readEmailFromQuery } from '../../utils/emailQuery'
+import { magicLinkRedirectTo, redirectToDashboard } from '../../utils/authRoutes'
 import { supabase } from '../../utils/supabaseClient'
 
-const RESEND_COOLDOWN_SECONDS = 30
+const SUCCESS_MESSAGE =
+  'アクセス用リンクをメールにお送りしました。ご確認ください。'
 
-const COPY = {
-  siteAccess: '会員サイトへアクセス',
-  lead:
-    'メールアドレスを入力し、アクセス用リンクを受け取ってください。パスワードは不要です。',
-  emailLabel: 'メールアドレス',
-  emailPlaceholder: 'you@example.com',
-  submit: 'アクセス用リンクを受け取る',
-  resend: 'リンクを再送する',
-  resendWait: (sec: number) => `再送まで ${sec} 秒`,
-  prefilledHint:
-    '会員登録時のメールアドレスを自動入力しました。下のボタンでアクセス用リンクを受け取れます。',
-  success:
-    'アクセス用リンクをメールに送信しました。受信トレイ（迷惑メールフォルダも）をご確認ください。',
-  successResent: 'アクセス用リンクを再送しました。メールをご確認ください。',
-  emptyEmail: 'メールアドレスを入力してください。',
-  sendFailed: 'リンクの送信に失敗しました。しばらくしてから再度お試しください。',
-  checkingSession: '接続を確認しています…',
-} as const
-
-const labelClass =
-  'mb-2 block text-[13px] font-semibold uppercase tracking-[0.12em] text-gatame-goldHi/95'
-
-const inputClass =
-  [
-    'w-full rounded-xl border bg-[#0e1829]/90 px-4 py-3.5 text-[15px] leading-snug text-white',
-    'border-gatame-gold/40 placeholder:text-white/50',
-    'outline-none transition-[border-color,box-shadow] duration-200',
-    'focus:border-gatame-goldHi focus:shadow-[0_0_0_2px_rgba(212,175,55,0.35)]',
-  ].join(' ')
-
+/**
+ * アプリの入り口（Kajabi 導線）。
+ * パスワード不要・Magic Link のみ。React Router 未使用のため URL は URLSearchParams で解析。
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
-  const [sessionChecking, setSessionChecking] = useState(true)
-  const [linkSent, setLinkSent] = useState(false)
-  const [cooldown, setCooldown] = useState(0)
-  const [message, setMessage] = useState<string | null>(null)
+  const [ready, setReady] = useState(false)
+  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [emailPrefilled, setEmailPrefilled] = useState(false)
 
   useEffect(() => {
     const fromQuery = readEmailFromQuery()
-    if (fromQuery) {
-      setEmail(fromQuery)
-      setEmailPrefilled(true)
-      stripEmailQueryParam()
-    }
+    if (fromQuery) setEmail(fromQuery)
   }, [])
-
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const t = window.setInterval(() => {
-      setCooldown((s) => (s > 0 ? s - 1 : 0))
-    }, 1000)
-    return () => window.clearInterval(t)
-  }, [cooldown])
 
   useEffect(() => {
     const client = supabase
     if (!client) {
-      setSessionChecking(false)
+      setReady(true)
       return
     }
 
     let mounted = true
 
-    const checkSession = async () => {
+    const init = async () => {
       try {
         const { data: { session } } = await client.auth.getSession()
         if (!mounted) return
@@ -83,11 +41,11 @@ export default function LoginPage() {
           return
         }
       } finally {
-        if (mounted) setSessionChecking(false)
+        if (mounted) setReady(true)
       }
     }
 
-    void checkSession()
+    void init()
 
     const {
       data: { subscription },
@@ -103,25 +61,23 @@ export default function LoginPage() {
     }
   }, [])
 
-  const sendAccessLink = useCallback(async () => {
+  const startAccess = useCallback(async () => {
     if (!supabase) return
-    if (cooldown > 0) return
 
     const trimmed = email.trim()
     if (!trimmed) {
-      setError(COPY.emptyEmail)
+      setError('メールアドレスを入力してください。')
       return
     }
 
-    setError(null)
-    setMessage(null)
     setBusy(true)
+    setError(null)
 
     try {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: trimmed,
         options: {
-          emailRedirectTo: dashboardUrl(),
+          emailRedirectTo: magicLinkRedirectTo(),
         },
       })
 
@@ -130,67 +86,65 @@ export default function LoginPage() {
         return
       }
 
-      const wasSent = linkSent
-      setLinkSent(true)
-      setCooldown(RESEND_COOLDOWN_SECONDS)
-      setMessage(wasSent ? COPY.successResent : COPY.success)
+      setSent(true)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : COPY.sendFailed
-      setError(msg)
+      setError(err instanceof Error ? err.message : '送信に失敗しました。')
     } finally {
       setBusy(false)
     }
-  }, [cooldown, email, linkSent])
+  }, [email])
 
-  if (sessionChecking) {
+  if (!ready) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gatame-midnight px-4">
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <div
-          className="h-10 w-10 animate-spin rounded-full border-2 border-gatame-gold border-t-transparent"
+          className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800"
           role="status"
           aria-label="Loading"
         />
-        <p className="mt-4 text-sm text-white/50">{COPY.checkingSession}</p>
       </div>
     )
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-gatame-midnight px-4 py-12">
-      <div className="pointer-events-none absolute inset-0 bg-gatame-navy/30" aria-hidden />
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="relative z-10 w-full max-w-md"
-      >
-        <div className="mb-8 flex flex-col items-center text-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-6 py-16">
+      <div className="w-full max-w-sm">
+        <div className="mb-10 flex flex-col items-center text-center">
           <img
             src={GATAME_LOGO_SRC}
             alt="Gatame"
-            className="mb-5 h-12 w-auto object-contain sm:h-14"
+            className="mb-6 h-10 w-auto object-contain"
             draggable={false}
           />
-          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            {COPY.siteAccess}
+          <h1 className="text-xl font-semibold tracking-tight text-neutral-900">
+            学習パスをはじめる
           </h1>
-          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/70">{COPY.lead}</p>
+          <p className="mt-2 text-sm leading-relaxed text-neutral-500">
+            メールアドレスだけでアクセスできます。
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-gatame-gold/35 bg-gatame-navy/55 p-6 shadow-[0_24px_80px_-28px_rgba(0,0,0,0.75)] backdrop-blur-md sm:p-8">
+        {sent ? (
+          <p
+            role="status"
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center text-sm leading-relaxed text-emerald-900"
+          >
+            {SUCCESS_MESSAGE}
+          </p>
+        ) : (
           <form
-            className="space-y-5"
+            className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault()
-              void sendAccessLink()
+              void startAccess()
             }}
           >
             <div>
-              <label htmlFor="access-email" className={labelClass}>
-                {COPY.emailLabel}
+              <label htmlFor="entry-email" className="sr-only">
+                メールアドレス
               </label>
               <input
-                id="access-email"
+                id="entry-email"
                 name="email"
                 type="email"
                 autoComplete="email"
@@ -198,54 +152,30 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value)
-                  if (linkSent) setLinkSent(false)
                   setError(null)
                 }}
-                className={inputClass}
-                placeholder={COPY.emailPlaceholder}
+                placeholder="メールアドレス"
                 disabled={busy}
+                className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3.5 text-[15px] text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-400 focus:bg-white focus:ring-2 focus:ring-neutral-200/80"
               />
-              {emailPrefilled ? (
-                <p className="mt-2 text-[12px] leading-snug text-gatame-goldHi/85">
-                  {COPY.prefilledHint}
-                </p>
-              ) : null}
             </div>
 
             {error ? (
-              <p
-                role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-200/95"
-              >
+              <p role="alert" className="text-center text-sm text-red-600">
                 {error}
-              </p>
-            ) : null}
-
-            {message ? (
-              <p
-                role="status"
-                className="rounded-xl border border-gatame-goldHi/50 bg-gatame-gold/[0.08] px-3 py-2.5 text-sm leading-snug text-gatame-goldHi"
-              >
-                {message}
               </p>
             ) : null}
 
             <button
               type="submit"
-              disabled={busy || cooldown > 0}
-              className={`${ghostGoldCtaClass} w-full normal-case tracking-normal`}
+              disabled={busy}
+              className="w-full rounded-xl bg-neutral-900 px-4 py-3.5 text-[15px] font-semibold text-white transition-opacity hover:bg-neutral-800 disabled:opacity-50"
             >
-              {busy
-                ? '送信中…'
-                : linkSent
-                  ? cooldown > 0
-                    ? COPY.resendWait(cooldown)
-                    : COPY.resend
-                  : COPY.submit}
+              {busy ? '送信中…' : 'アクセスを開始する'}
             </button>
           </form>
-        </div>
-      </motion.div>
+        )}
+      </div>
     </div>
   )
 }

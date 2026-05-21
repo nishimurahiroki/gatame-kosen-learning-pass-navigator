@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { GATAME_LOGO_SRC } from '../../constants/brandAssets'
 import { ghostGoldCtaClass } from '../../constants/brandTheme'
 import { readEmailFromQuery, stripEmailQueryParam } from '../../utils/emailQuery'
-import { dashboardUrl, redirectToDashboard } from '../../utils/authRoutes'
+import { magicLinkRedirectTo, redirectToDashboard } from '../../utils/authRoutes'
 import { supabase } from '../../utils/supabaseClient'
 
 const SUCCESS_MESSAGE =
@@ -38,7 +38,7 @@ export default function AccessPage() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: trimmed,
       options: {
-        emailRedirectTo: dashboardUrl(),
+          emailRedirectTo: magicLinkRedirectTo(),
       },
     })
 

@@ -61,6 +61,8 @@
   },
   "sync": {
     "retry": "Retry",
+    "dismiss": "Dismiss",
+    "errorDetail": "Reason",
     "pendingCount": "{n} unsaved",
     "banner": {
       "syncing": "Saving your progress to the cloud…",

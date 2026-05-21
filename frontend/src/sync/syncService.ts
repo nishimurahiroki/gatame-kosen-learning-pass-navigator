@@ -8,6 +8,7 @@ import {
   type SyncWriteResult,
 } from '../api/supabaseProgressApi'
 import type { AssessmentRequest, AssessmentResponse } from '../types'
+import { supabase } from '../lib/supabase'
 import {
   clearOutbox,
   enqueueOutbox,
@@ -43,6 +44,8 @@ export interface FlushSyncResult {
   synced: number
   failed: number
   remaining: number
+  /** 直近の Supabase エラーメッセージ（UI 表示用） */
+  lastError: string | null
 }
 
 let flushInFlight: Promise<FlushSyncResult> | null = null
@@ -53,20 +56,33 @@ let flushUserId: string | null = null
  * 起動時・オンライン復帰時・ユーザーが「再試行」したときに呼ぶ。
  */
 export function flushSyncQueue(userId: string): Promise<FlushSyncResult> {
-  if (!userId) return Promise.resolve({ synced: 0, failed: 0, remaining: 0 })
+  if (!userId) {
+    return Promise.resolve({ synced: 0, failed: 0, remaining: 0, lastError: null })
+  }
   if (flushInFlight && flushUserId === userId) return flushInFlight
 
   flushUserId = userId
   flushInFlight = (async () => {
     notifySyncChanged()
 
+    const empty = { synced: 0, failed: 0, remaining: outboxCount(userId), lastError: null }
+
     if (!isBrowserOnline()) {
-      const remaining = outboxCount(userId)
-      return { synced: 0, failed: 0, remaining }
+      return empty
+    }
+
+    if (!supabase) {
+      return { ...empty, lastError: 'Supabase is not configured' }
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      return empty
     }
 
     let synced = 0
     let failed = 0
+    let lastError: string | null = null
     const entries = loadOutbox(userId)
 
     for (const entry of entries) {
@@ -77,14 +93,13 @@ export function flushSyncQueue(userId: string): Promise<FlushSyncResult> {
         synced++
       } else {
         failed++
-        // 1件失敗したら後続も同様の可能性が高いので一旦停止（次回リトライ）
-        break
+        lastError = result.message
       }
     }
 
     const remaining = outboxCount(userId)
     notifySyncChanged()
-    return { synced, failed, remaining }
+    return { synced, failed, remaining, lastError }
   })().finally(() => {
     flushInFlight = null
     flushUserId = null

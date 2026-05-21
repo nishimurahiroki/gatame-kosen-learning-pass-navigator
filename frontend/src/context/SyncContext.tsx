@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  clearUserSyncQueue,
   flushSyncQueue,
   getPendingSyncCount,
   isBrowserOnline,
@@ -17,7 +18,10 @@ import { GATAME_SYNC_CHANGED_EVENT, type SyncBannerStatus } from '../sync/syncTy
 type SyncContextValue = {
   status: SyncBannerStatus
   pendingCount: number
+  lastError: string | null
   retryNow: () => void
+  /** 未送信キューを破棄しバナーを閉じる（ローカル進捗は残る） */
+  discardUnsaved: () => void
 }
 
 const SyncContext = createContext<SyncContextValue | null>(null)
@@ -45,6 +49,7 @@ export function SyncProvider({
   const [pendingCount, setPendingCount] = useState(() => getPendingSyncCount(userId))
   const [syncing, setSyncing] = useState(false)
   const [lastFlushHadFailures, setLastFlushHadFailures] = useState(false)
+  const [lastError, setLastError] = useState<string | null>(null)
 
   const refreshPending = useCallback(() => {
     setPendingCount(getPendingSyncCount(userId))
@@ -58,7 +63,9 @@ export function SyncProvider({
     setSyncing(true)
     try {
       const result = await flushSyncQueue(userId)
-      setLastFlushHadFailures(result.failed > 0 || result.remaining > 0)
+      const remaining = result.remaining
+      setLastFlushHadFailures(result.failed > 0 && remaining > 0)
+      setLastError(remaining > 0 ? result.lastError : null)
     } finally {
       setSyncing(false)
       refreshPending()
@@ -69,11 +76,20 @@ export function SyncProvider({
     void runFlush()
   }, [runFlush])
 
+  const discardUnsaved = useCallback(() => {
+    if (!userId) return
+    clearUserSyncQueue(userId)
+    setLastFlushHadFailures(false)
+    setLastError(null)
+    refreshPending()
+  }, [userId, refreshPending])
+
   // 起動時・userId 確定時: 未送信を先にアップロード
   useEffect(() => {
     if (!userId) {
       setPendingCount(0)
       setLastFlushHadFailures(false)
+      setLastError(null)
       return
     }
     refreshPending()
@@ -101,8 +117,8 @@ export function SyncProvider({
   const status = deriveStatus(online, pendingCount, syncing, lastFlushHadFailures)
 
   const value = useMemo(
-    () => ({ status, pendingCount, retryNow }),
-    [status, pendingCount, retryNow],
+    () => ({ status, pendingCount, lastError, retryNow, discardUnsaved }),
+    [status, pendingCount, lastError, retryNow, discardUnsaved],
   )
 
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>
