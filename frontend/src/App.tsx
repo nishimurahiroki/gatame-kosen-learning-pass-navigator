@@ -2,7 +2,8 @@ import { Analytics } from '@vercel/analytics/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import NavigatorApp from './NavigatorApp'
 import AuthLoadingScreen from './components/auth/AuthLoadingScreen'
-import LoginScreen from './components/auth/LoginScreen'
+import LoginPage from './components/auth/LoginPage'
+import { DASHBOARD_PATH } from './utils/authRoutes'
 import ResetPasswordScreen from './components/auth/ResetPasswordScreen'
 import EnvErrorScreen from './components/common/EnvErrorScreen'
 import SyncStatusBanner from './components/common/SyncStatusBanner'
@@ -14,6 +15,12 @@ import { isSupabaseConfigured, missingSupabaseEnvKeys } from './lib/supabase'
 function isResetPasswordPath() {
   if (typeof window === 'undefined') return false
   return window.location.pathname === '/reset-password'
+}
+
+function isAppShellPath() {
+  if (typeof window === 'undefined') return true
+  const path = window.location.pathname
+  return path === '/' || path === DASHBOARD_PATH
 }
 
 function AppGate() {
@@ -37,9 +44,9 @@ function AppGate() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <LoginScreen />
+          <LoginPage />
         </motion.div>
-      ) : (
+      ) : isAppShellPath() ? (
         <motion.div
           key="navigator"
           initial={{ opacity: 0 }}
@@ -52,6 +59,8 @@ function AppGate() {
             <NavigatorApp />
           </SyncProvider>
         </motion.div>
+      ) : (
+        <LoginPage />
       )}
     </AnimatePresence>
   )
