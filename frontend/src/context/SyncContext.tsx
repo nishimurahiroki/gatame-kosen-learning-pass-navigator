@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import en from '../locales/en.json'
 import {
   clearUserSyncQueue,
   flushSyncQueue,
@@ -64,6 +65,11 @@ export function SyncProvider({
     try {
       const result = await flushSyncQueue(userId)
       const remaining = result.remaining
+      if (result.authStale) {
+        setLastFlushHadFailures(false)
+        setLastError(en.sync.authStale)
+        return
+      }
       setLastFlushHadFailures(result.failed > 0 && remaining > 0)
       setLastError(remaining > 0 ? result.lastError : null)
     } finally {

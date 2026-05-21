@@ -3,7 +3,8 @@ import { motion } from 'framer-motion'
 import { GATAME_LOGO_SRC } from '../../constants/brandAssets'
 import { ghostGoldCtaClass } from '../../constants/brandTheme'
 import { readEmailFromQuery, stripEmailQueryParam } from '../../utils/emailQuery'
-import { magicLinkRedirectTo, redirectToDashboard } from '../../utils/authRoutes'
+import { magicLinkRedirectTo, redirectToDiagnostic } from '../../utils/authRoutes'
+import { resolveAuthenticatedUserId } from '../../utils/authVerify'
 import { supabase } from '../../utils/supabaseClient'
 
 const SUCCESS_MESSAGE =
@@ -60,10 +61,10 @@ export default function AccessPage() {
 
     const init = async () => {
       try {
-        const { data: { session } } = await client.auth.getSession()
+        const userId = await resolveAuthenticatedUserId()
         if (!mounted) return
-        if (session) {
-          redirectToDashboard()
+        if (userId) {
+          redirectToDiagnostic()
           return
         }
       } catch {
@@ -72,6 +73,10 @@ export default function AccessPage() {
       }
 
       const emailFromUrl = readEmailFromQuery()
+      if (emailFromUrl) {
+        setEmail(emailFromUrl)
+      }
+
       if (!emailFromUrl) {
         if (mounted) setPhase('form')
         return
@@ -81,7 +86,6 @@ export default function AccessPage() {
       autoSendStarted.current = true
 
       if (mounted) {
-        setEmail(emailFromUrl)
         setPhase('auto-sending')
         setError(null)
         setMessage(null)
@@ -105,7 +109,7 @@ export default function AccessPage() {
       data: { subscription },
     } = client.auth.onAuthStateChange((event, session) => {
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        redirectToDashboard()
+        redirectToDiagnostic()
       }
     })
 

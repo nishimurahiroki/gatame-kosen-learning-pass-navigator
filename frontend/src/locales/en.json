@@ -63,6 +63,7 @@
     "retry": "Retry",
     "dismiss": "Dismiss",
     "errorDetail": "Reason",
+    "authStale": "Your sign-in session is no longer valid. Please open the access link from your email again.",
     "pendingCount": "{n} unsaved",
     "banner": {
       "syncing": "Saving your progress to the cloud…",

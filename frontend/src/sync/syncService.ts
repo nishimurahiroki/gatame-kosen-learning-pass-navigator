@@ -9,6 +9,7 @@ import {
 } from '../api/supabaseProgressApi'
 import type { AssessmentRequest, AssessmentResponse } from '../types'
 import { supabase } from '../lib/supabase'
+import { isInvalidAuthUserDbError, resolveAuthenticatedUserId } from '../utils/authVerify'
 import {
   clearOutbox,
   enqueueOutbox,
@@ -46,6 +47,8 @@ export interface FlushSyncResult {
   remaining: number
   /** 直近の Supabase エラーメッセージ（UI 表示用） */
   lastError: string | null
+  /** 古いセッション等で auth.users にユーザーが無い */
+  authStale: boolean
 }
 
 let flushInFlight: Promise<FlushSyncResult> | null = null
@@ -57,7 +60,13 @@ let flushUserId: string | null = null
  */
 export function flushSyncQueue(userId: string): Promise<FlushSyncResult> {
   if (!userId) {
-    return Promise.resolve({ synced: 0, failed: 0, remaining: 0, lastError: null })
+    return Promise.resolve({
+      synced: 0,
+      failed: 0,
+      remaining: 0,
+      lastError: null,
+      authStale: false,
+    })
   }
   if (flushInFlight && flushUserId === userId) return flushInFlight
 
@@ -65,7 +74,13 @@ export function flushSyncQueue(userId: string): Promise<FlushSyncResult> {
   flushInFlight = (async () => {
     notifySyncChanged()
 
-    const empty = { synced: 0, failed: 0, remaining: outboxCount(userId), lastError: null }
+    const empty = {
+      synced: 0,
+      failed: 0,
+      remaining: outboxCount(userId),
+      lastError: null as string | null,
+      authStale: false,
+    }
 
     if (!isBrowserOnline()) {
       return empty
@@ -75,31 +90,47 @@ export function flushSyncQueue(userId: string): Promise<FlushSyncResult> {
       return { ...empty, lastError: 'Supabase is not configured' }
     }
 
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return empty
+    const authenticatedId = await resolveAuthenticatedUserId()
+    if (!authenticatedId || authenticatedId !== userId) {
+      clearOutbox(userId)
+      await supabase.auth.signOut()
+      notifySyncChanged()
+      return {
+        synced: 0,
+        failed: 0,
+        remaining: 0,
+        lastError: null,
+        authStale: true,
+      }
     }
 
     let synced = 0
     let failed = 0
     let lastError: string | null = null
+    let authStale = false
     const entries = loadOutbox(userId)
 
     for (const entry of entries) {
       if (!isBrowserOnline()) break
-      const result = await executeOp(userId, entry.op)
+      const result = await executeOp(authenticatedId, entry.op)
       if (result.ok) {
         removeOutboxKey(userId, entry.key)
         synced++
       } else {
         failed++
         lastError = result.message
+        if (isInvalidAuthUserDbError(result.message)) {
+          authStale = true
+          clearOutbox(userId)
+          await supabase.auth.signOut()
+          break
+        }
       }
     }
 
     const remaining = outboxCount(userId)
     notifySyncChanged()
-    return { synced, failed, remaining, lastError }
+    return { synced, failed, remaining, lastError, authStale }
   })().finally(() => {
     flushInFlight = null
     flushUserId = null

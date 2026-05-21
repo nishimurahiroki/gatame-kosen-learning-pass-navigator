@@ -9,6 +9,8 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { clearUserSyncQueue } from '../sync/syncService'
+import { resolveAuthenticatedUserId } from '../utils/authVerify'
 
 type AuthContextValue = {
   session: Session | null
@@ -32,12 +34,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true
 
-    supabase.auth.getSession().then(({ data: { session: initial } }) => {
-      if (mounted) {
-        setSession(initial)
-        setLoading(false)
+    void (async () => {
+      const { data: { session: initial } } = await supabase.auth.getSession()
+      if (!mounted) return
+      if (initial) {
+        const verifiedId = await resolveAuthenticatedUserId()
+        if (!mounted) return
+        if (!verifiedId) {
+          setSession(null)
+        } else {
+          setSession(initial.user.id === verifiedId ? initial : null)
+        }
+      } else {
+        setSession(null)
       }
-    })
+      setLoading(false)
+    })()
 
     const {
       data: { subscription },
@@ -54,8 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!supabase) return
+    const uid = session?.user?.id
+    if (uid) clearUserSyncQueue(uid)
     await supabase.auth.signOut()
-  }, [])
+  }, [session?.user?.id])
 
   const value = useMemo(
     () => ({ session, loading, signOut }),
