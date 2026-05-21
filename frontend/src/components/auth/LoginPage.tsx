@@ -13,7 +13,7 @@ const SUCCESS_MESSAGE =
  * パスワード不要・Magic Link のみ。React Router 未使用のため URL は URLSearchParams で解析。
  */
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => readEmailFromQuery() ?? '')
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
   const [sent, setSent] = useState(false)
