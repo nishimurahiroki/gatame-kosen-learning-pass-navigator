@@ -13,8 +13,8 @@ gatame:
     config-path: classpath:modules.json
 
   cors:
-    # Render / 本番: GATAME_CORS_ALLOWED_ORIGINS（例: https://your-app.vercel.app）
-    allowed-origins: ${GATAME_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    # 本番 URL をデフォルト。ローカルは GATAME_CORS_ALLOWED_ORIGINS=http://localhost:5173 を設定。
+    allowed-origins: ${GATAME_CORS_ALLOWED_ORIGINS:https://gatame-kosen-learning-pass-navigato.vercel.app}
 
   scoring:
     ukemi-module-id: ukemi

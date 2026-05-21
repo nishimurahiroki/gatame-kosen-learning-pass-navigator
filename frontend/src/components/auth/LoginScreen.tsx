@@ -6,6 +6,7 @@ import { ghostGoldCtaClass } from '../../constants/brandTheme'
 import SignUpEmailSentDialog from './SignUpEmailSentDialog'
 
 const RESET_RESEND_COOLDOWN_SECONDS = 30
+const MAGIC_LINK_RESEND_COOLDOWN_SECONDS = 30
 
 /** 0=Too short, 1=Weak, 2=Fair, 3=Good, 4=Strong */
 type PasswordStrength = 0 | 1 | 2 | 3 | 4
@@ -55,6 +56,27 @@ const STRENGTH_BAR_COLORS: Record<PasswordStrength, string> = {
   4: 'bg-emerald-500/90',
 }
 
+/** Kajabi 等から `?email=` で渡されたアドレスを読み取る（React Router 未使用のため URLSearchParams） */
+function readEmailFromQuery(): string | null {
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('email')
+  if (!raw) return null
+  const trimmed = decodeURIComponent(raw).trim()
+  if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null
+  return trimmed
+}
+
+/** 読み取り後に `email` クエリを URL から除去（ブックマーク・共有時の漏洩を抑える） */
+function stripEmailQueryParam(): void {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  if (!params.has('email')) return
+  params.delete('email')
+  const qs = params.toString()
+  const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
+  window.history.replaceState(null, '', next)
+}
+
 function GoogleIcon() {
   return (
     <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
@@ -95,6 +117,9 @@ const inputClass =
 const googleGhostClass =
   'flex w-full items-center justify-center gap-3 rounded-2xl border border-white/28 bg-transparent px-4 py-3.5 text-sm font-semibold text-white transition-[border-color,background-color,color,transform] hover:border-gatame-goldHi/60 hover:bg-gatame-gold/[0.06] hover:text-gatame-goldHi active:scale-[0.99] disabled:opacity-40'
 
+const magicLinkGhostClass =
+  'w-full rounded-2xl border border-gatame-gold/35 bg-transparent px-4 py-3.5 text-sm font-semibold text-gatame-goldHi transition-[border-color,background-color] hover:border-gatame-goldHi/55 hover:bg-gatame-gold/[0.06] disabled:opacity-40'
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -105,8 +130,23 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
   const [resetCooldown, setResetCooldown] = useState(0)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [magicLinkCooldown, setMagicLinkCooldown] = useState(0)
+  /** Kajabi 等のリンクから email クエリで遷移したか */
+  const [emailPrefilledFromUrl, setEmailPrefilledFromUrl] = useState(false)
   /** Sign up 成功後に表示する確認メール送信 POP（メールアドレスを保持） */
   const [signUpEmailSent, setSignUpEmailSent] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fromQuery = readEmailFromQuery()
+    if (fromQuery) {
+      setEmail(fromQuery)
+      setEmailPrefilledFromUrl(true)
+      setMode('signIn')
+      setScreen('auth')
+      stripEmailQueryParam()
+    }
+  }, [])
 
   useEffect(() => {
     if (resetCooldown <= 0) return
@@ -115,6 +155,14 @@ export default function LoginScreen() {
     }, 1000)
     return () => window.clearInterval(t)
   }, [resetCooldown])
+
+  useEffect(() => {
+    if (magicLinkCooldown <= 0) return
+    const t = window.setInterval(() => {
+      setMagicLinkCooldown((s) => (s > 0 ? s - 1 : 0))
+    }, 1000)
+    return () => window.clearInterval(t)
+  }, [magicLinkCooldown])
 
   const clearFeedback = () => {
     setError(null)
@@ -133,6 +181,48 @@ export default function LoginScreen() {
       if (oauthError) {
         setError(oauthError.message)
       }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Supabase Magic Link（OTP）— Kajabi から email が渡されたユーザー向け */
+  const handleMagicLinkSignIn = async () => {
+    if (!supabase) return
+    if (magicLinkCooldown > 0) return
+
+    const trimmed = email.trim()
+    if (!trimmed) {
+      alert('Please enter your email address.')
+      return
+    }
+
+    clearFeedback()
+    setBusy(true)
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      })
+      if (otpError) {
+        alert(otpError.message)
+        setError(otpError.message)
+        return
+      }
+      setMagicLinkSent(true)
+      setMagicLinkCooldown(MAGIC_LINK_RESEND_COOLDOWN_SECONDS)
+      setMessage(
+        magicLinkSent
+          ? 'Sign-in link resent. Check your inbox (including spam).'
+          : 'Check your email for the sign-in link.',
+      )
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Could not send the sign-in link. Please try again.'
+      alert(msg)
+      setError(msg)
     } finally {
       setBusy(false)
     }
@@ -271,11 +361,20 @@ export default function LoginScreen() {
                     autoComplete="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (magicLinkSent) setMagicLinkSent(false)
+                    }}
                     className={inputClass}
                     placeholder="you@example.com"
                     disabled={busy}
                   />
+                  {emailPrefilledFromUrl && mode === 'signIn' ? (
+                    <p className="mt-2 text-[12px] leading-snug text-gatame-goldHi/80">
+                      We pre-filled your email from your membership link. Use the sign-in link below
+                      if you do not use a password.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="group">
                   <label htmlFor="auth-password" className={labelClass}>
@@ -285,8 +384,8 @@ export default function LoginScreen() {
                     id="auth-password"
                     type="password"
                     autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
-                    required
-                    minLength={6}
+                    required={mode === 'signUp'}
+                    minLength={mode === 'signUp' ? 6 : undefined}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={inputClass}
@@ -329,19 +428,21 @@ export default function LoginScreen() {
                       )
                     })()
                   ) : null}
-                  <div className="mt-1.5 flex justify-end">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setScreen('forgot')
-                        clearFeedback()
-                      }}
-                      className="text-[11px] font-medium tracking-wide text-gatame-gold/78 underline decoration-gatame-gold/35 underline-offset-[5px] transition-colors hover:text-gatame-goldHi hover:decoration-gatame-goldHi/50"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
+                  {mode === 'signIn' ? (
+                    <div className="mt-1.5 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setScreen('forgot')
+                          clearFeedback()
+                        }}
+                        className="text-[11px] font-medium tracking-wide text-gatame-gold/78 underline decoration-gatame-gold/35 underline-offset-[5px] transition-colors hover:text-gatame-goldHi hover:decoration-gatame-goldHi/50"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
                 {error ? (
@@ -378,6 +479,7 @@ export default function LoginScreen() {
                     onClick={() => {
                       setMode('signUp')
                       clearFeedback()
+                      setMagicLinkSent(false)
                     }}
                     className={[
                       'flex-1 rounded-xl py-3 text-xs font-bold uppercase tracking-[0.14em] transition-colors',
@@ -390,9 +492,29 @@ export default function LoginScreen() {
                   </button>
                 </div>
 
-                <button type="submit" disabled={busy} className={`${ghostGoldCtaClass} w-full`}>
-                  {mode === 'signIn' ? 'Sign In with Email' : 'Create Account'}
-                </button>
+                {mode === 'signIn' ? (
+                  <>
+                    <button type="submit" disabled={busy} className={`${ghostGoldCtaClass} w-full`}>
+                      Sign In with Email
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || magicLinkCooldown > 0}
+                      onClick={() => void handleMagicLinkSignIn()}
+                      className={magicLinkGhostClass}
+                    >
+                      {magicLinkSent
+                        ? magicLinkCooldown > 0
+                          ? `Resend sign-in link in ${magicLinkCooldown}s`
+                          : 'Resend sign-in link'
+                        : 'Email me a sign-in link'}
+                    </button>
+                  </>
+                ) : (
+                  <button type="submit" disabled={busy} className={`${ghostGoldCtaClass} w-full`}>
+                    Create Account
+                  </button>
+                )}
               </form>
             </>
           ) : (
