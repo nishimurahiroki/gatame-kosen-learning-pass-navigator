@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { GATAME_LOGO_SRC } from '../../constants/brandAssets'
 import { ghostGoldCtaClass } from '../../constants/brandTheme'
+import { readEmailFromQuery, stripEmailQueryParam } from '../../utils/emailQuery'
 import { dashboardUrl, redirectToDashboard } from '../../utils/authRoutes'
 import { supabase } from '../../utils/supabaseClient'
 
@@ -25,25 +26,6 @@ const COPY = {
   sendFailed: 'リンクの送信に失敗しました。しばらくしてから再度お試しください。',
   checkingSession: '接続を確認しています…',
 } as const
-
-function readEmailFromQuery(): string | null {
-  if (typeof window === 'undefined') return null
-  const raw = new URLSearchParams(window.location.search).get('email')
-  if (!raw) return null
-  const trimmed = decodeURIComponent(raw).trim()
-  if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null
-  return trimmed
-}
-
-function stripEmailQueryParam(): void {
-  if (typeof window === 'undefined') return
-  const params = new URLSearchParams(window.location.search)
-  if (!params.has('email')) return
-  params.delete('email')
-  const qs = params.toString()
-  const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`
-  window.history.replaceState(null, '', next)
-}
 
 const labelClass =
   'mb-2 block text-[13px] font-semibold uppercase tracking-[0.12em] text-gatame-goldHi/95'

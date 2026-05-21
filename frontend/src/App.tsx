@@ -2,8 +2,9 @@ import { Analytics } from '@vercel/analytics/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import NavigatorApp from './NavigatorApp'
 import AuthLoadingScreen from './components/auth/AuthLoadingScreen'
+import AccessPage from './components/auth/AccessPage'
 import LoginPage from './components/auth/LoginPage'
-import { DASHBOARD_PATH } from './utils/authRoutes'
+import { DASHBOARD_PATH, isAccessPath, redirectToDashboard } from './utils/authRoutes'
 import ResetPasswordScreen from './components/auth/ResetPasswordScreen'
 import EnvErrorScreen from './components/common/EnvErrorScreen'
 import SyncStatusBanner from './components/common/SyncStatusBanner'
@@ -30,7 +31,16 @@ function AppGate() {
     return <ResetPasswordScreen />
   }
 
+  if (!session && isAccessPath()) {
+    return <AccessPage />
+  }
+
   if (loading) {
+    return <AuthLoadingScreen />
+  }
+
+  if (session && isAccessPath()) {
+    redirectToDashboard()
     return <AuthLoadingScreen />
   }
 
