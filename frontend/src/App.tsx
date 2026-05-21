@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import NavigatorApp from './NavigatorApp'
 import AuthLoadingScreen from './components/auth/AuthLoadingScreen'
@@ -57,13 +58,17 @@ function AppGate() {
 }
 
 export default function App() {
-  if (!isSupabaseConfigured) {
-    return <EnvErrorScreen missingKeys={missingSupabaseEnvKeys} />
-  }
   return (
-    <AuthProvider>
-      <AppGate />
-      <ToastHost />
-    </AuthProvider>
+    <>
+      {!isSupabaseConfigured ? (
+        <EnvErrorScreen missingKeys={missingSupabaseEnvKeys} />
+      ) : (
+        <AuthProvider>
+          <AppGate />
+          <ToastHost />
+        </AuthProvider>
+      )}
+      <Analytics />
+    </>
   )
 }

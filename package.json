@@ -8,5 +8,8 @@
     "preview": "npm run preview --prefix frontend",
     "lint": "npm run lint --prefix frontend",
     "install:frontend": "npm install --prefix frontend"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
   }
 }
