@@ -9,6 +9,7 @@ import {
   syncModuleProgress,
 } from '../sync/syncService'
 import { fetchLearningPath } from '../api/learningPathApi'
+import { mergeGuestOnSignIn } from '../sync/mergeGuestOnSignIn'
 import en from '../locales/en.json'
 import type { AssessmentRequest, AssessmentResponse } from '../types'
 import {
@@ -17,6 +18,7 @@ import {
   saveSavedLearningPath,
 } from '../utils/learningPathPersistence'
 import { markPathGeneratedThisSession } from '../utils/practiceCheckPersistence'
+import { getGuestStorageId } from '../utils/guestDevice'
 import {
   buildCompletedModuleIdsForRegeneration,
   clearPathSessionProgress,
@@ -89,6 +91,12 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
     }
 
     const hydrate = async () => {
+      // §10.8: Magic Link 後は guestLocal を member キーへマージしてから読み込む
+      if (syncUserId) {
+        await mergeGuestOnSignIn(getGuestStorageId(), syncUserId)
+        if (cancelled) return
+      }
+
       const local = loadSavedLearningPath(storageId)
       if (local && !cancelled) {
         alignSessionForSnapshot(local.assessmentRequest, local.response)

@@ -189,12 +189,15 @@ export default function AccessPage() {
           ) : null}
 
           {showSuccessOnly ? (
-            <p
+            <div
               role="status"
               className="rounded-xl border border-emerald-400/50 bg-emerald-500/10 px-4 py-4 text-center text-sm leading-relaxed text-emerald-100"
             >
-              {message}
-            </p>
+              <p>{message}</p>
+              <p className="mt-2 text-xs leading-relaxed text-emerald-100/90">
+                {en.auth.magicLinkSenderNote}
+              </p>
+            </div>
           ) : null}
 
           {kajabiTemplateWarning && !showChecking && !showSuccessOnly ? (

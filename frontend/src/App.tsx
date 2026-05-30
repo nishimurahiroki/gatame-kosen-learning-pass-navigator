@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { Analytics } from '@vercel/analytics/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import NavigatorApp from './NavigatorApp'
@@ -12,7 +11,6 @@ import { ToastHost } from './components/common/Toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SyncProvider } from './context/SyncContext'
 import { isSupabaseConfigured, missingSupabaseEnvKeys } from './lib/supabase'
-import { mergeGuestOnSignIn } from './sync/mergeGuestOnSignIn'
 import {
   currentPathname,
   DASHBOARD_PATH,
@@ -21,7 +19,6 @@ import {
   isTopPath,
   redirectToDiagnostic,
 } from './utils/authRoutes'
-import { getGuestStorageId } from './utils/guestDevice'
 
 function isResetPasswordPath() {
   return currentPathname() === '/reset-password'
@@ -54,14 +51,6 @@ function DiagnosticShell() {
 
 function AppGate() {
   const { session, loading } = useAuth()
-  const mergedForUser = useRef<string | null>(null)
-
-  useEffect(() => {
-    const userId = session?.user?.id
-    if (!userId || mergedForUser.current === userId) return
-    mergedForUser.current = userId
-    void mergeGuestOnSignIn(getGuestStorageId(), userId)
-  }, [session?.user?.id])
 
   if (isResetPasswordPath()) {
     return <ResetPasswordScreen />

@@ -96,6 +96,7 @@
     "kajabiWarning": "The email from your Kajabi link was not expanded (URL still shows {token}). Type your email manually or fix the Kajabi link to use a personalized Email field."
   },
   "auth": {
+    "magicLinkSenderNote": "The sign-in email is sent from Supabase Auth <noreply@mail.app.supabase.io>. Check your inbox and spam folder.",
     "signUpEmailSent": {
       "title": "Confirmation email sent",
       "fromLabel": "From",

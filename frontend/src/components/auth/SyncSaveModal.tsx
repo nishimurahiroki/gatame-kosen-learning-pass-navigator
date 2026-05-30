@@ -182,12 +182,15 @@ export default function SyncSaveModal({ open, onClose }: SyncSaveModalProps) {
               <p className="mt-2 text-sm leading-relaxed text-white/70">{en.syncSave.description}</p>
 
               {sent ? (
-                <p
+                <div
                   role="status"
                   className="mt-4 rounded-xl border border-emerald-400/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
                 >
-                  {en.syncSave.successMessage}
-                </p>
+                  <p>{en.syncSave.successMessage}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-emerald-100/90">
+                    {en.auth.magicLinkSenderNote}
+                  </p>
+                </div>
               ) : (
                 <form className="mt-4 space-y-4" onSubmit={(e) => void handleSubmit(e)}>
                   {error ? (
