@@ -10,9 +10,6 @@ export type UserSegment =
   | 'JUDO_ADVANCED'
   | 'BJJ_ADVANCED'
 
-/** @deprecated 旧フォーム互換。新ウィザードでは UserSegment を使用 */
-export type UserType = 'BEGINNER' | 'JUDO' | 'BJJ' | 'ADVANCED'
-
 /** Q1 → バックエンドが期待する日本語ラベル */
 export const USER_SEGMENT_TO_ATTRIBUTE: Record<UserSegment, string> = {
   NOVICE: '未経験',
@@ -20,14 +17,6 @@ export const USER_SEGMENT_TO_ATTRIBUTE: Record<UserSegment, string> = {
   BJJ_BEGINNER: 'BJJ(白/青)',
   JUDO_ADVANCED: 'Judo(二段以上)',
   BJJ_ADVANCED: 'BJJ(紫以上)',
-}
-
-/** Step 1 の選択値 → API の userAttribute 文言へ（レガシー） */
-export const USER_TYPE_TO_ATTRIBUTE_API: Record<UserType, string> = {
-  BEGINNER: '未経験',
-  JUDO: 'Judo(白/初段)',
-  BJJ: 'BJJ(白/青)',
-  ADVANCED: 'Judo(二段以上)',
 }
 
 /** 未経験者向け憧れスタイル（バックエンド AspirationStyle の JSON ラベルと一致） */
@@ -49,14 +38,16 @@ export interface AssessmentRequest {
   userAttribute: string
   /** 経験者向け Q2。未経験者では省略可。 */
   interests?: InterestOrientation | null
-  /** 課題 A〜G（複数可） */
+  /** 経験者・熟練者 Q2 課題 ID（複数可・スキップ可） */
   problems: string[]
   /** 未経験者向け Q2-alt（複数可） */
   aspirations?: AspirationStyleLabel[] | string[]
-  /** Q5（スコアには影響しない） */
+  /** Q3（パス抽選には使わない） */
   finalGoal?: FinalGoalLabel | string | null
   completedModuleIds?: string[]
   userId?: string
+  /** Q4 — フロントのみ永続化（API には送らない） */
+  hasAnnualMembership?: boolean
 }
 
 /** modules.json の課題ID → 診断の課題文字（application.yml の A〜G と一致） */
@@ -81,16 +72,6 @@ export interface PainPointOption {
 import { PAIN_POINT_OPTIONS } from '../locales/painPoints'
 
 export { PAIN_POINT_OPTIONS }
-
-export function bbsThresholdForAttribute(attr: string): number {
-  switch (attr) {
-    case 'Judo(二段以上)':
-    case 'BJJ(紫以上)':
-      return 1
-    default:
-      return 3
-  }
-}
 
 // ── 難易度レベル ──────────────────────────────────────────────────────
 
@@ -125,12 +106,8 @@ export interface AssessmentResponse {
   interests?: InterestOrientation | null
   aspirations: string[]
   finalGoal?: string | null
-  suggestBBSEarly?: boolean
-  /** Server-driven Y offset (px) per module for skill map layout; positive pushes node downward. */
-  layoutPullByModuleId?: Record<string, number>
   recommendedModules: ScoredModule[]
   totalModules: number
-  showBbsPromotion: boolean
   recommendedBbsGrade: string
 }
 

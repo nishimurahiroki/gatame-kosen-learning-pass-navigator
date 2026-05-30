@@ -1,42 +1,68 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  loadMemberSelfDeclared,
-  MEMBER_SELF_DECLARE_STORAGE_KEY,
-  saveMemberSelfDeclared,
-} from '../utils/membershipSelfDeclareStorage'
+  ANNUAL_MEMBERSHIP_ACCESS_KEY,
+  GATAME_ANNUAL_MEMBERSHIP_CHANGED_EVENT,
+  hasAnnualMembershipAnswered,
+  loadHasAnnualMembership,
+  saveAnnualMembershipAccess,
+} from '../utils/annualMembershipAccess'
 
 export type MembershipAccessContextValue = {
-  /** Bottom Bar 中央が Login になる自己申告会員か */
-  isMember: boolean
-  /** Member 選択時: 永続化し即座に isMember を true に */
-  declareMember: () => void
+  /** 診断または 1 問モーダルで Annual の回答済みか */
+  hasAnswered: boolean
+  /** Annual Membership 購入済み（自己申告・診断回答） */
+  hasAnnualMembership: boolean
+  setAnnualMembership: (hasAnnual: boolean) => void
+  /** 「I already purchased」等 — hasAnnual=true に固定 */
+  markAnnualPurchased: () => void
 }
 
 const MembershipAccessContext = createContext<MembershipAccessContextValue | null>(null)
 
 export function MembershipAccessProvider({ children }: { children: ReactNode }) {
-  const [isMember, setIsMember] = useState(() => loadMemberSelfDeclared())
+  const [hasAnswered, setHasAnswered] = useState(() => hasAnnualMembershipAnswered())
+  const [hasAnnualMembership, setHasAnnualMembershipState] = useState(() => loadHasAnnualMembership())
+
+  const refresh = useCallback(() => {
+    setHasAnswered(hasAnnualMembershipAnswered())
+    setHasAnnualMembershipState(loadHasAnnualMembership())
+  }, [])
 
   useEffect(() => {
+    refresh()
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== MEMBER_SELF_DECLARE_STORAGE_KEY) return
-      setIsMember(loadMemberSelfDeclared())
+      if (e.key === ANNUAL_MEMBERSHIP_ACCESS_KEY) refresh()
     }
+    const onLocal = () => refresh()
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
+    window.addEventListener(GATAME_ANNUAL_MEMBERSHIP_CHANGED_EVENT, onLocal)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(GATAME_ANNUAL_MEMBERSHIP_CHANGED_EVENT, onLocal)
+    }
+  }, [refresh])
 
-  const declareMember = useCallback(() => {
-    saveMemberSelfDeclared()
-    setIsMember(true)
-  }, [])
+  const setAnnualMembership = useCallback(
+    (hasAnnual: boolean) => {
+      saveAnnualMembershipAccess(hasAnnual)
+      refresh()
+    },
+    [refresh],
+  )
+
+  const markAnnualPurchased = useCallback(() => {
+    saveAnnualMembershipAccess(true)
+    refresh()
+  }, [refresh])
 
   const value = useMemo(
     () => ({
-      isMember,
-      declareMember,
+      hasAnswered,
+      hasAnnualMembership,
+      setAnnualMembership,
+      markAnnualPurchased,
     }),
-    [isMember, declareMember],
+    [hasAnswered, hasAnnualMembership, setAnnualMembership, markAnnualPurchased],
   )
 
   return <MembershipAccessContext.Provider value={value}>{children}</MembershipAccessContext.Provider>

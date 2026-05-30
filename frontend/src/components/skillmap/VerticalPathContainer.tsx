@@ -1,70 +1,85 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactFlow, { ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow'
 import type { Edge, Node } from 'reactflow'
-import { isNoviceUser, moduleCategoryLabel, prerequisitesMetForUser, STREET_PASS_TECHNIQUE_MAX } from '../../api/learningPathApi'
-import { buildStreetPathWithBbsOffers, effectiveBbsSequenceStartIndex, trailEdgeCleared } from '../../api/streetPathWithBbs'
+import { isNoviceUser, moduleCategoryLabel } from '../../api/learningPathApi'
+import {
+  buildFourPlusOnePath,
+  extractGeneratedPathModules,
+  prerequisitesMetOnLearningPath,
+  trailEdgeCleared,
+} from '../../api/streetPathWithBbs'
 import {
   postModuleFeedback,
   type DifficultyFeedbackApi,
 } from '../../api/progressApi'
 import {
-  addCompletedBbsLevel,
-  loadBbsDeclaredMasteredLevels,
   loadLifetimeMasteredModuleIds,
+  loadBbsDeclaredMasteredLevels,
   mergeLifetimeMasteredModuleIds,
-  saveCompletedModuleIds,
-  loadRawSessionCompletedModuleIds,
+  removeLifetimeMasteredModuleIds,
+  canGenerateNextPath,
+  ensurePathSessionAligned,
+  GATAME_MODULE_PROGRESS_CHANGED_EVENT,
+  loadPathSessionCompletedIds,
+  savePathSessionCompletedIds,
   progressSessionId,
+  addCompletedBbsLevel,
 } from '../../utils/progressStorage'
+import {
+  isPathStageCompleteDismissed,
+  markPathStageCompleteDismissed,
+} from '../../utils/pathStageCompleteStorage'
 import { allTodosChecked, moduleTodoItemsFromModule } from '../../utils/modulePracticeTodos'
 import {
+  loadHasAnnualMembership,
+  saveAnnualMembershipAccess,
+} from '../../utils/annualMembershipAccess'
+import {
   isAnnualMembershipPromoOnCooldown,
-  loadAnnualMembershipPurchased,
   markAnnualMembershipPromoDismissed,
-  saveAnnualMembershipPurchased,
 } from '../../utils/annualMembershipPromoStorage'
 import en from '../../locales/en.json'
 import {
   loadRemoteModuleProgress,
   loadRemoteSessionDetails,
+  saveRemoteModuleFeedback,
 } from '../../api/supabaseProgressApi'
 import { syncModuleDetail, syncModuleProgress } from '../../sync/syncService'
-import ConfirmDialog from '../common/ConfirmDialog'
 import { showToast } from '../common/Toast'
 import ModuleCompleteFeedbackDialog from './ModuleCompleteFeedbackDialog'
 import VerticalPathDrawerPanel from './VerticalPathDrawerPanel'
 import type { AssessmentRequest, LearningPathResponse, ScoredModule } from '../../types'
+import { usePracticeCheck } from '../../hooks/usePracticeCheck'
 import BbsPathStepNode, { type BbsPathStepNodeData } from './BbsPathStepNode'
 import BbsOfferDrawerPanel from './BbsOfferDrawerPanel'
 import PathStepNode, { type PathStepNodeData, type PathStepVisualState } from './PathStepNode'
 import ProgressTrailEdge, { type ProgressTrailEdgeData } from './ProgressTrailEdge'
-import { computeSerpentineLayout, PATH_BREAKPOINT_LG } from './verticalPathLayout'
-import {
-  BBS_LEVEL_SEQUENCE,
-  bbsCheckoutUrlMonthlyOrNull,
-  bbsCheckoutUrlOneTimeOrNull,
-  resolveBbsCheckoutLevelForEntryBanner,
-  type BbsLevelKey,
-} from '../../constants/bbsOffers'
-import LearningPathCompleteOverlay from './LearningPathCompleteOverlay'
+import { computePathLayout, PATH_BREAKPOINT_LG } from './verticalPathLayout'
+import { resolveTrailHandles } from './pathTrailHandles'
 import AnnualMembershipPromoOverlay from './AnnualMembershipPromoOverlay'
-import BbsMilestoneCelebrateOverlay from './BbsMilestoneCelebrateOverlay'
-import BbsBeltLogo from './BbsBeltLogo'
-import { ghostGoldCtaCompactClass } from '../../constants/brandTheme'
+import PathStageCompleteOverlay from './PathStageCompleteOverlay'
+import PracticeCheckCard from '../practice/PracticeCheckCard'
 
 const nodeTypes = { pathStep: PathStepNode, bbsStep: BbsPathStepNode }
 const edgeTypes = { progressTrail: ProgressTrailEdge }
 
+export type GuestEngagementKind = 'drawer_open' | 'todo_check'
+
 export interface VerticalPathContainerProps {
   response: LearningPathResponse
   assessmentRequest?: AssessmentRequest | null
-  onPathRefresh?: (request: AssessmentRequest) => Promise<void>
-  /** 診断直後の BBS エントリーポイント訴求バナー */
-  showPathGeneratedBanner?: boolean
-  onDismissPathGeneratedBanner?: () => void
   /** ログイン中のユーザー ID（Supabase 同期用） */
   userId?: string
+  /** Guest: guest:deviceId / Member: userId */
+  storageId: string
+  /** Guest: 初回ドロワー開封・初回 TODO チェック時の Save progress 推薦 */
+  onGuestEngagement?: (kind: GuestEngagementKind) => void
+  /** 4 モジュール完了後: 残モジュールから次パスを生成 */
+  onGenerateNextPath?: () => Promise<void>
+  /** 診断のやり直し（ConfirmDialog へ） */
+  onRequestRetake?: () => void
+  generatingNextPath?: boolean
 }
 
 function deriveVisualState(
@@ -72,10 +87,18 @@ function deriveVisualState(
   completedIds: Set<string>,
   prerequisitesMet: boolean,
   activeId: string | null,
+  pathEntryModuleId: string | null,
 ): PathStepVisualState {
   if (completedIds.has(module.id)) return 'completed'
-  if (module.locked || !prerequisitesMet) return 'locked'
   if (activeId === module.id) return 'active'
+  if (
+    pathEntryModuleId === module.id &&
+    !module.locked &&
+    !completedIds.has(module.id)
+  ) {
+    return 'active'
+  }
+  if (module.locked || !prerequisitesMet) return 'locked'
   return 'waiting'
 }
 
@@ -115,32 +138,15 @@ function useMediaWide() {
 function VerticalPathInner({
   response,
   assessmentRequest,
-  onPathRefresh,
-  showPathGeneratedBanner,
-  onDismissPathGeneratedBanner,
   userId,
+  storageId,
+  onGuestEngagement,
+  onGenerateNextPath,
+  onRequestRetake,
+  generatingNextPath = false,
 }: VerticalPathContainerProps) {
   const allRecommended = response.recommendedModules ?? []
   const pathUserAttribute = assessmentRequest?.userAttribute ?? response.userAttribute
-  const bannerBbsLevel = useMemo(
-    () => resolveBbsCheckoutLevelForEntryBanner(pathUserAttribute, response.recommendedBbsGrade),
-    [pathUserAttribute, response.recommendedBbsGrade],
-  )
-  const bannerOneTimeUrl = useMemo(() => bbsCheckoutUrlOneTimeOrNull(bannerBbsLevel), [bannerBbsLevel])
-  const bannerMonthlyUrl = useMemo(() => bbsCheckoutUrlMonthlyOrNull(bannerBbsLevel), [bannerBbsLevel])
-
-  const [stageMasteredExclude, setStageMasteredExclude] = useState<Set<string>>(() => new Set())
-  const [bbsDeclaredMastered, setBbsDeclaredMastered] = useState<Set<BbsLevelKey>>(() => new Set())
-  /** 現在のパス構築用 BBS シーケンス開始（合格宣言のたびには変えず、診断キー／次ステージ時のみ更新） */
-  const [pathBbsSequenceStart, setPathBbsSequenceStart] = useState(() =>
-    effectiveBbsSequenceStartIndex(
-      pathUserAttribute,
-      loadBbsDeclaredMasteredLevels(assessmentRequest ?? null),
-    ),
-  )
-  const [celebrateBbsLevel, setCelebrateBbsLevel] = useState<BbsLevelKey | null>(null)
-  const [lifetimeVersion, setLifetimeVersion] = useState(0)
-  const [nextStageLoading, setNextStageLoading] = useState(false)
 
   const assessmentRequestRef = useRef(assessmentRequest)
   assessmentRequestRef.current = assessmentRequest
@@ -151,51 +157,46 @@ function VerticalPathInner({
     [assessmentRequest],
   )
 
-  useLayoutEffect(() => {
-    const req = assessmentRequestRef.current
-    if (!req) return
-    setStageMasteredExclude(loadLifetimeMasteredModuleIds(req))
-    const declared = loadBbsDeclaredMasteredLevels(req)
-    setBbsDeclaredMastered(declared)
-    setPathBbsSequenceStart(effectiveBbsSequenceStartIndex(req.userAttribute, declared))
-  }, [pathAssessmentKey])
+  const apiPathModuleIds = useMemo(
+    () => extractGeneratedPathModules(allRecommended).map((m) => m.id),
+    [allRecommended],
+  )
 
-  const { modulesForStreet, isReviewPath } = useMemo(() => {
-    const um = allRecommended.filter((m) => !stageMasteredExclude.has(m.id))
-    if (um.length > 0) return { modulesForStreet: um, isReviewPath: false }
-    const pool = allRecommended.filter((m) => stageMasteredExclude.has(m.id))
-    if (pool.length === 0) return { modulesForStreet: allRecommended, isReviewPath: false }
-    const copy = [...pool]
-    for (let i = copy.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      const t = copy[i]!
-      copy[i] = copy[j]!
-      copy[j] = t
-    }
-    const cap = Math.min(STREET_PASS_TECHNIQUE_MAX, copy.length)
-    return { modulesForStreet: copy.slice(0, cap), isReviewPath: true }
-  }, [allRecommended, stageMasteredExclude])
+  /** 診断キー／Retake 時のみ再構築。完了のたびには組み直さない（4 モジュールを Pass 上に固定）。 */
+  const pathItems = useMemo(() => {
+    const pins = loadPathSessionCompletedIds(assessmentRequest ?? null, apiPathModuleIds)
+    const pathModules = extractGeneratedPathModules(allRecommended)
+    return buildFourPlusOnePath(allRecommended, {
+      userAttribute: pathUserAttribute,
+      recommendedBbsGrade: response.recommendedBbsGrade,
+      pathModules,
+      pinnedModuleIds: pins.size > 0 ? pins : undefined,
+    })
+  }, [
+    allRecommended,
+    pathUserAttribute,
+    response.recommendedBbsGrade,
+    pathAssessmentKey,
+    assessmentRequest,
+    apiPathModuleIds,
+  ])
 
-  /** 熟練者の FOUNDATION ロック等。未経験者では空（受け身などポリシー免除しない）。 */
+  const pathModuleIds = useMemo(
+    () => pathItems.filter((it) => !it.isBbsModule).map((it) => it.module.id),
+    [pathItems],
+  )
+
+  const pathEntryModuleId = pathModuleIds[0] ?? null
+
   const policyLockedModuleIds = useMemo(() => {
     if (isNoviceUser(pathUserAttribute)) return new Set<string>()
     const s = new Set<string>()
-    for (const m of modulesForStreet) {
-      if (m.locked) s.add(m.id)
+    for (const it of pathItems) {
+      if (it.isBbsModule) continue
+      if (it.module.locked) s.add(it.module.id)
     }
     return s
-  }, [modulesForStreet, pathUserAttribute])
-
-  /** 診断キー／次ステージ時のみ再構築。完了のたびには組み直さない（完了モジュールを Pass 上に残す）。 */
-  const pathItems = useMemo(() => {
-    const pins = loadRawSessionCompletedModuleIds(assessmentRequest ?? null)
-    return buildStreetPathWithBbsOffers(modulesForStreet, {
-      maxSteps: STREET_PASS_TECHNIQUE_MAX,
-      userAttribute: pathUserAttribute,
-      startBbsSequenceIndex: pathBbsSequenceStart,
-      pinnedModuleIds: pins.size > 0 ? pins : undefined,
-    })
-  }, [modulesForStreet, pathUserAttribute, pathBbsSequenceStart, pathAssessmentKey, assessmentRequest])
+  }, [pathItems, pathUserAttribute])
 
   const sessionKey = useMemo(() => progressSessionId(assessmentRequest ?? null), [assessmentRequest])
 
@@ -250,7 +251,7 @@ function VerticalPathInner({
   const isWideLayout = useMediaWide()
 
   const [completedIds, setCompletedIds] = useState<Set<string>>(() =>
-    loadRawSessionCompletedModuleIds(assessmentRequest ?? null),
+    loadPathSessionCompletedIds(assessmentRequest ?? null, pathModuleIds),
   )
   const [drawerModuleId, setDrawerModuleId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -266,18 +267,25 @@ function VerticalPathInner({
    * 並行して Supabase からリモートデータをマージする（新しい方を優先）。
    */
   useEffect(() => {
-    const localIds = loadRawSessionCompletedModuleIds(assessmentRequest ?? null)
+    if (!assessmentRequest || pathModuleIds.length === 0) return
+    ensurePathSessionAligned(assessmentRequest, pathModuleIds)
+    const localIds = loadPathSessionCompletedIds(assessmentRequest, pathModuleIds)
     setCompletedIds(localIds)
 
-    if (!userId || !assessmentRequest) return
+    if (!userId) return
     const fp = progressSessionId(assessmentRequest)
+    const onPath = new Set(pathModuleIds)
     void loadRemoteModuleProgress(userId, fp).then((remote) => {
       if (!remote) return
       const merged = new Set(localIds)
-      for (const id of remote.sessionCompletedIds) merged.add(id)
+      for (const id of remote.sessionCompletedIds) {
+        if (onPath.has(id)) merged.add(id)
+      }
       if (merged.size > localIds.size) {
+        // クラウド側の古い全完了スナップショットを新パスに誤適用しない
+        if (localIds.size === 0 && merged.size >= onPath.size) return
         setCompletedIds(merged)
-        saveCompletedModuleIds(assessmentRequest, merged)
+        savePathSessionCompletedIds(assessmentRequest, pathModuleIds, merged)
       }
       // lifetime / BBS も localStorage に反映（ブラウザ間同期）
       for (const id of remote.lifetimeMasteredIds) {
@@ -287,11 +295,10 @@ function VerticalPathInner({
         addCompletedBbsLevel(assessmentRequest, lvl as import('../../constants/bbsOffers').BbsLevelKey)
       }
     })
-  }, [assessmentRequest, pathAssessmentKey, userId])
+  }, [assessmentRequest, pathAssessmentKey, pathModuleIds, userId])
 
   useEffect(() => {
-    saveCompletedModuleIds(assessmentRequest ?? null, completedIds)
-    // Supabase へ非同期 write-through
+    savePathSessionCompletedIds(assessmentRequest ?? null, pathModuleIds, completedIds)
     if (userId && assessmentRequest) {
       syncModuleProgress(userId, assessmentFingerprint, {
         sessionCompletedIds: [...completedIds],
@@ -299,16 +306,23 @@ function VerticalPathInner({
         bbsDeclaredMasteredLevels: [...loadBbsDeclaredMasteredLevels(assessmentRequest)],
       })
     }
-  }, [assessmentRequest, completedIds, userId, assessmentFingerprint])
+  }, [assessmentRequest, completedIds, pathModuleIds, userId, assessmentFingerprint])
 
   const techniqueIdsOnPath = useMemo(
     () => pathItems.filter((it) => !it.isBbsModule).map((it) => it.module.id),
     [pathItems],
   )
 
+  const [lifetimeRevision, setLifetimeRevision] = useState(0)
+  useEffect(() => {
+    const onProgressChanged = () => setLifetimeRevision((n) => n + 1)
+    window.addEventListener(GATAME_MODULE_PROGRESS_CHANGED_EVENT, onProgressChanged)
+    return () => window.removeEventListener(GATAME_MODULE_PROGRESS_CHANGED_EVENT, onProgressChanged)
+  }, [])
+
   const liveLifetime = useMemo(
     () => loadLifetimeMasteredModuleIds(assessmentRequest ?? null),
-    [assessmentRequest, lifetimeVersion],
+    [assessmentRequest, lifetimeRevision],
   )
 
   /** 前提・active・トレイル用: 現在パスのチェック＋過去ステージで習得済み（生涯） */
@@ -324,46 +338,53 @@ function VerticalPathInner({
     [techniqueIdsOnPath, completedIds],
   )
 
-  const pathCompleteOpen = useMemo(
-    () => allTechniquesDone && Boolean(onPathRefresh),
-    [allTechniquesDone, onPathRefresh],
+  const pathCompleteOpen = allTechniquesDone
+
+  const catalogModuleTotal = Math.max(1, response.totalModules ?? 1)
+  const canGenerateNext = useMemo(
+    () =>
+      canGenerateNextPath(assessmentRequest ?? null, pathModuleIds, catalogModuleTotal),
+    [assessmentRequest, pathModuleIds, catalogModuleTotal],
   )
 
-  const [annualPromoOpen, setAnnualPromoOpen] = useState(false)
-  const [annualPurchased, setAnnualPurchased] = useState(() => loadAnnualMembershipPurchased())
-  /**
-   * 同一ブラウザセッション内で診断直後の自動プロモを 1 回だけ開く。
-   * sessionStorage はタブを閉じるまで保持されるため、リロード越しでも再表示しない。
-   */
-  const annualPromoSessionShownRef = useRef<boolean>(
-    typeof window !== 'undefined' &&
-      window.sessionStorage?.getItem('gatame.annual-promo-session-shown') === '1',
-  )
+  const [stageCompleteOpen, setStageCompleteOpen] = useState(false)
 
   useEffect(() => {
-    if (annualPurchased) return
-    if (!showPathGeneratedBanner) return
-    if (annualPromoSessionShownRef.current) return
-    if (isAnnualMembershipPromoOnCooldown()) return
-    const t = window.setTimeout(() => {
-      setAnnualPromoOpen(true)
-      annualPromoSessionShownRef.current = true
-      try {
-        window.sessionStorage?.setItem('gatame.annual-promo-session-shown', '1')
-      } catch {
-        /* ignore */
-      }
-    }, 450)
-    return () => window.clearTimeout(t)
-  }, [showPathGeneratedBanner, annualPurchased])
+    if (!pathCompleteOpen || !assessmentRequest) {
+      setStageCompleteOpen(false)
+      return
+    }
+    if (isPathStageCompleteDismissed(assessmentRequest, pathModuleIds)) {
+      setStageCompleteOpen(false)
+      return
+    }
+    setStageCompleteOpen(true)
+  }, [pathCompleteOpen, assessmentRequest, pathModuleIds])
+
+  const dismissStageComplete = useCallback(() => {
+    if (assessmentRequest) {
+      markPathStageCompleteDismissed(assessmentRequest, pathModuleIds)
+    }
+    setStageCompleteOpen(false)
+  }, [assessmentRequest, pathModuleIds])
+
+  const handleGenerateNextPath = useCallback(async () => {
+    if (!onGenerateNextPath || generatingNextPath) return
+    await onGenerateNextPath()
+    setStageCompleteOpen(false)
+  }, [onGenerateNextPath, generatingNextPath])
+
+  const [annualPromoOpen, setAnnualPromoOpen] = useState(false)
+  const [annualPurchased, setAnnualPurchased] = useState(() => loadHasAnnualMembership())
 
   useEffect(() => {
     if (annualPurchased) return
     if (!pathCompleteOpen) return
+    if (stageCompleteOpen) return
     if (isAnnualMembershipPromoOnCooldown()) return
     const t = window.setTimeout(() => setAnnualPromoOpen(true), 450)
     return () => window.clearTimeout(t)
-  }, [pathCompleteOpen, annualPurchased])
+  }, [pathCompleteOpen, stageCompleteOpen, annualPurchased])
 
   const prevPathCompleteOpen = useRef(false)
   useEffect(() => {
@@ -379,30 +400,10 @@ function VerticalPathInner({
   }, [])
 
   const markAnnualMembershipPurchased = useCallback(() => {
-    saveAnnualMembershipPurchased()
+    saveAnnualMembershipAccess(true)
     setAnnualPurchased(true)
     setAnnualPromoOpen(false)
   }, [])
-
-  const fullCatalogMastered = useMemo(
-    () => allRecommended.length > 0 && allRecommended.every((m) => liveLifetime.has(m.id)),
-    [allRecommended, liveLifetime],
-  )
-
-  const bbsRankMastery = useMemo(
-    () => ({ completed: bbsDeclaredMastered.size, total: BBS_LEVEL_SEQUENCE.length }),
-    [bbsDeclaredMastered],
-  )
-
-  const bbsMilestonesCompleteForPath = useMemo(
-    () => pathBbsSequenceStart >= BBS_LEVEL_SEQUENCE.length,
-    [pathBbsSequenceStart],
-  )
-
-  const masteryPercent = useMemo(
-    () => Math.min(100, Math.round((liveLifetime.size / Math.max(1, response.totalModules)) * 100)),
-    [liveLifetime, response.totalModules],
-  )
 
   useEffect(() => {
     const el = scrollRef.current
@@ -417,34 +418,65 @@ function VerticalPathInner({
       if (it.isBbsModule) continue
       const m = it.module
       if (completedIds.has(m.id)) continue
-      const ok = prerequisitesMetForUser(
-        m.prerequisites,
+      const ok = prerequisitesMetOnLearningPath(
+        pathItems,
+        m.id,
+        completedIds,
         idsForPrerequisiteProgress,
         pathUserAttribute,
         policyLockedModuleIds,
       )
       if (ok && !m.locked) return m.id
     }
+    const first = pathItems.find((it) => !it.isBbsModule)
+    if (first && !completedIds.has(first.module.id) && !first.module.locked) {
+      const ok = prerequisitesMetOnLearningPath(
+        pathItems,
+        first.module.id,
+        completedIds,
+        idsForPrerequisiteProgress,
+        pathUserAttribute,
+        policyLockedModuleIds,
+      )
+      if (ok) return first.module.id
+    }
     return null
   }, [pathItems, completedIds, idsForPrerequisiteProgress, pathUserAttribute, policyLockedModuleIds])
 
   const layout = useMemo(
-    () => computeSerpentineLayout(pathItems.length, containerWidth, isWideLayout),
+    () => computePathLayout(pathItems.length, containerWidth, isWideLayout),
     [pathItems.length, containerWidth, isWideLayout],
   )
 
-  const onOpen = useCallback((moduleId: string) => {
-    setDrawerModuleId(moduleId)
-  }, [])
+  const onOpen = useCallback(
+    (moduleId: string) => {
+      setDrawerModuleId(moduleId)
+      if (!userId) {
+        const isBbs = pathItems.some((it) => it.isBbsModule && it.bbs.id === moduleId)
+        if (!isBbs) onGuestEngagement?.('drawer_open')
+      }
+    },
+    [pathItems, userId, onGuestEngagement],
+  )
 
-  const onToggleComplete = useCallback((moduleId: string) => {
-    setCompletedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(moduleId)) next.delete(moduleId)
-      else next.add(moduleId)
-      return next
-    })
-  }, [])
+  const onToggleComplete = useCallback(
+    (moduleId: string) => {
+      setCompletedIds((prev) => {
+        const wasCompleted = prev.has(moduleId)
+        const next = new Set(prev)
+        if (wasCompleted) {
+          next.delete(moduleId)
+          if (assessmentRequest) {
+            removeLifetimeMasteredModuleIds(assessmentRequest, [moduleId])
+          }
+        } else {
+          next.add(moduleId)
+        }
+        return next
+      })
+    },
+    [assessmentRequest],
+  )
 
   const beginCompleteFeedback = useCallback((moduleId: string) => {
     setFeedbackModuleId(moduleId)
@@ -452,6 +484,7 @@ function VerticalPathInner({
 
   const handleToggleTodo = useCallback(
     (moduleId: string, itemId: string, checked: boolean) => {
+      if (checked && !userId) onGuestEngagement?.('todo_check')
       setProgressByModule((p) => {
         const cur = p[moduleId] ?? { checked: {}, memo: '' }
         const currentChecked = { ...cur.checked, [itemId]: checked }
@@ -465,7 +498,7 @@ function VerticalPathInner({
         return { ...p, [moduleId]: { ...cur, checked: currentChecked } }
       })
     },
-    [sessionKey, userId],
+    [sessionKey, userId, onGuestEngagement],
   )
 
   const handleMemoSave = useCallback(
@@ -499,21 +532,36 @@ function VerticalPathInner({
         nx.add(mid)
         return nx
       })
+      if (assessmentRequest) {
+        mergeLifetimeMasteredModuleIds(assessmentRequest, [mid])
+      }
       setFeedbackModuleId(null)
       setDrawerModuleId(null)
       try {
-        await postModuleFeedback({
-          sessionKey,
-          moduleId: mid,
-          difficulty: payload.difficulty,
-          satisfaction: payload.satisfaction,
-          videoRequestNote: payload.videoRequestNote,
-        })
+        if (userId) {
+          const result = await saveRemoteModuleFeedback(userId, {
+            moduleId: mid,
+            difficulty: payload.difficulty,
+            satisfaction: payload.satisfaction,
+            comment: payload.videoRequestNote,
+          })
+          if (!result.ok) {
+            showToast(en.toast.feedbackSaveFailed, 'error')
+          }
+        } else {
+          await postModuleFeedback({
+            sessionKey,
+            moduleId: mid,
+            difficulty: payload.difficulty,
+            satisfaction: payload.satisfaction,
+            videoRequestNote: payload.videoRequestNote,
+          })
+        }
       } catch {
         showToast(en.toast.feedbackSaveFailed, 'error')
       }
     },
-    [feedbackModuleId, sessionKey],
+    [feedbackModuleId, sessionKey, assessmentRequest, userId],
   )
 
   const feedbackModuleName = useMemo(() => {
@@ -526,75 +574,6 @@ function VerticalPathInner({
 
   const closeDrawer = useCallback(() => setDrawerModuleId(null), [])
 
-  const scrollToNextAfterBbs = useCallback(
-    (bbsId: string) => {
-      const idx = pathItems.findIndex((it) => it.isBbsModule && it.bbs.id === bbsId)
-      if (idx < 0) return
-      for (let j = idx + 1; j < pathItems.length; j++) {
-        const it = pathItems[j]
-        if (!it || it.isBbsModule) continue
-        const pos = layout.positions[j]
-        const el = scrollRef.current
-        if (!el || !pos) return
-        const targetTop = pos.y + layout.nodeBox * 0.35 - el.clientHeight * 0.35
-        el.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
-        return
-      }
-    },
-    [pathItems, layout],
-  )
-
-  const [bbsConfirmLevel, setBbsConfirmLevel] = useState<BbsLevelKey | null>(null)
-
-  const handleDeclareBbsMastered = useCallback((level: BbsLevelKey) => {
-    setBbsConfirmLevel(level)
-  }, [])
-
-  const handleConfirmBbsMastered = useCallback(() => {
-    const level = bbsConfirmLevel
-    setBbsConfirmLevel(null)
-    if (!level) return
-    const req = assessmentRequest ?? null
-    if (!addCompletedBbsLevel(req, level)) return
-    setBbsDeclaredMastered(loadBbsDeclaredMasteredLevels(req))
-    setCelebrateBbsLevel(level)
-    window.setTimeout(() => setCelebrateBbsLevel(null), 2800)
-    // BBS 宣言を Supabase へ write-through（completedIds が変わらないため useEffect では拾えない）
-    if (userId && req) {
-      const fp = progressSessionId(req)
-      syncModuleProgress(userId, fp, {
-        sessionCompletedIds: [...loadRawSessionCompletedModuleIds(req)],
-        lifetimeMasteredIds: [...loadLifetimeMasteredModuleIds(req)],
-        bbsDeclaredMasteredLevels: [...loadBbsDeclaredMasteredLevels(req)],
-      })
-    }
-  }, [assessmentRequest, bbsConfirmLevel, userId])
-
-  const handleStartNextStage = useCallback(async () => {
-    if (!assessmentRequest || !onPathRefresh) return
-    setNextStageLoading(true)
-    try {
-      const req = assessmentRequest
-      mergeLifetimeMasteredModuleIds(
-        req,
-        [...completedIds].filter((id) => !id.startsWith('bbs-offer:')),
-      )
-      saveCompletedModuleIds(req, new Set())
-      setCompletedIds(new Set())
-      setStageMasteredExclude(loadLifetimeMasteredModuleIds(req))
-      const declaredAfter = loadBbsDeclaredMasteredLevels(req)
-      setBbsDeclaredMastered(declaredAfter)
-      setPathBbsSequenceStart(effectiveBbsSequenceStartIndex(req.userAttribute, declaredAfter))
-      setLifetimeVersion((v) => v + 1)
-      await onPathRefresh({
-        ...req,
-        completedModuleIds: Array.from(loadLifetimeMasteredModuleIds(req)),
-      })
-    } finally {
-      setNextStageLoading(false)
-    }
-  }, [assessmentRequest, onPathRefresh, completedIds])
-
   /** RF の NodeWrapper は onClick が無いと pointer-events:none になり、子のボタンが押せない */
   const noopNodeClick = useCallback(() => {}, [])
 
@@ -606,13 +585,21 @@ function VerticalPathInner({
       const pos = layout.positions[i] ?? { x: 0, y: 0 }
       if (!item.isBbsModule) {
         const module = item.module
-        const prereqOk = prerequisitesMetForUser(
-          module.prerequisites,
+        const prereqOk = prerequisitesMetOnLearningPath(
+          pathItems,
+          module.id,
+          completedIds,
           idsForPrerequisiteProgress,
           pathUserAttribute,
           policyLockedModuleIds,
         )
-        const visualState = deriveVisualState(module, completedIds, prereqOk, activeId)
+        const visualState = deriveVisualState(
+          module,
+          completedIds,
+          prereqOk,
+          activeId,
+          pathEntryModuleId,
+        )
         return {
           id: module.id,
           type: 'pathStep',
@@ -635,7 +622,6 @@ function VerticalPathInner({
         }
       }
       const { bbs } = item
-      const levelDeclared = bbsDeclaredMastered.has(bbs.sequenceLevel)
       return {
         id: bbs.id,
         type: 'bbsStep',
@@ -644,13 +630,11 @@ function VerticalPathInner({
         selectable: false,
         data: {
           bbs,
-          levelDeclaredMastered: levelDeclared,
+          gateLocked: false,
           nodeBox: layout.nodeBox,
           outerWidth: layout.outerWidth,
           isWide: isWideLayout,
           onOpen,
-          onDeclareMastered: handleDeclareBbsMastered,
-          onContinuePath: () => scrollToNextAfterBbs(bbs.id),
         },
       }
     })
@@ -663,15 +647,25 @@ function VerticalPathInner({
       const targetId = b.isBbsModule ? b.bbs.id : b.module.id
       const variant: ProgressTrailEdgeData['variant'] = trailEdgeCleared(
         pathItems,
-        idsForPrerequisiteProgress,
+        completedIds,
         i,
       )
         ? 'cleared'
         : 'locked'
+      const sourcePos = layout.positions[i] ?? { x: 0, y: 0 }
+      const targetPos = layout.positions[i + 1] ?? { x: 0, y: 0 }
+      const { sourceHandle, targetHandle } = resolveTrailHandles(
+        sourcePos,
+        targetPos,
+        layout,
+        isWideLayout,
+      )
       nextEdges.push({
         id: `trail-${sourceId}-${targetId}`,
         source: sourceId,
         target: targetId,
+        sourceHandle,
+        targetHandle,
         type: 'progressTrail',
         data: { variant },
       })
@@ -685,6 +679,7 @@ function VerticalPathInner({
     completedIds,
     idsForPrerequisiteProgress,
     activeId,
+    pathEntryModuleId,
     isWideLayout,
     todosCompleteById,
     onOpen,
@@ -692,9 +687,6 @@ function VerticalPathInner({
     beginCompleteFeedback,
     pathUserAttribute,
     policyLockedModuleIds,
-    bbsDeclaredMastered,
-    handleDeclareBbsMastered,
-    scrollToNextAfterBbs,
     setNodes,
     setEdges,
   ])
@@ -716,8 +708,10 @@ function VerticalPathInner({
   }, [drawerModuleId, pathItems])
 
   const drawerPrereqOk = drawerModule
-    ? prerequisitesMetForUser(
-        drawerModule.prerequisites,
+    ? prerequisitesMetOnLearningPath(
+        pathItems,
+        drawerModule.id,
+        completedIds,
         idsForPrerequisiteProgress,
         pathUserAttribute,
         policyLockedModuleIds,
@@ -726,6 +720,51 @@ function VerticalPathInner({
 
   const drawerTodoItems = drawerModule ? todoItemsByModule.get(drawerModule.id) ?? [] : []
   const drawerProgress = drawerModule ? progressByModule[drawerModule.id] : undefined
+
+  const modulesInUiOrder = useMemo(
+    () => pathItems.filter((it) => !it.isBbsModule).map((it) => it.module),
+    [pathItems],
+  )
+
+  const checkedByModule = useMemo(() => {
+    const out: Record<string, Record<string, boolean>> = {}
+    for (const [moduleId, progress] of Object.entries(progressByModule)) {
+      out[moduleId] = progress.checked ?? {}
+    }
+    return out
+  }, [progressByModule])
+
+  const conversionGateUrl = useMemo(() => {
+    const gate = pathItems.find((it) => it.isBbsModule)
+    if (!gate || !gate.isBbsModule) return null
+    return gate.bbs.oneTimeCheckoutUrl ?? gate.bbs.monthlyCheckoutUrl ?? gate.bbs.curriculumAccessUrl ?? null
+  }, [pathItems])
+
+  const handleSetTechniqueChecked = useCallback(
+    (moduleId: string, techniqueId: string, checked: boolean) => {
+      setProgressByModule((p) => {
+        const cur = p[moduleId] ?? { checked: {}, memo: '' }
+        const currentChecked = { ...cur.checked, [techniqueId]: checked }
+        if (!checked) delete currentChecked[techniqueId]
+        if (userId) {
+          syncModuleDetail(userId, sessionKey, moduleId, {
+            checkedItems: currentChecked,
+            memo: cur.memo,
+          })
+        }
+        return { ...p, [moduleId]: { ...cur, checked: currentChecked } }
+      })
+    },
+    [sessionKey, userId],
+  )
+
+  const practiceCheck = usePracticeCheck({
+    storageId,
+    assessmentFingerprint,
+    modulesInUiOrder,
+    checkedByModule,
+    onSetTechniqueChecked: handleSetTechniqueChecked,
+  })
 
   if (!pathItems.length) {
     return (
@@ -749,68 +788,26 @@ function VerticalPathInner({
       />
 
       <div className="relative z-10 mx-auto w-full max-w-[1600px] px-3 sm:px-6 lg:px-10">
-        {showPathGeneratedBanner ? (
-          <div
-            role="status"
-            className="mb-4 flex flex-col gap-3 rounded-2xl border border-gatame-gold/40 bg-gatame-midnight/80 px-4 py-4 shadow-[0_8px_36px_rgba(197,160,89,0.12)] sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-          >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <BbsBeltLogo size={44} className="shrink-0" />
-              <p className="min-w-0 text-base font-bold leading-snug text-white sm:text-lg">
-                We found the perfect entry point for your Black Belt System.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
-              {bannerOneTimeUrl ? (
-                <a
-                  href={bannerOneTimeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex shrink-0 items-center justify-center rounded-xl border border-blue-900/90 bg-blue-950 px-4 py-2 text-xs font-bold uppercase tracking-wide text-blue-100 hover:border-blue-800 hover:bg-blue-900"
-                >
-                  One-time
-                </a>
-              ) : null}
-              {bannerMonthlyUrl ? (
-                <a
-                  href={bannerMonthlyUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`${ghostGoldCtaCompactClass} relative overflow-visible pr-5`}
-                >
-                  <span className="absolute -right-1 -top-2 whitespace-nowrap rounded-full border border-gatame-gold/50 bg-gatame-midnight px-2 py-0.5 text-[9px] font-bold uppercase leading-none text-gatame-gold">
-                    Recommended
-                  </span>
-                  Monthly
-                </a>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => onDismissPathGeneratedBanner?.()}
-                className="shrink-0 rounded-xl border border-white/20 bg-slate-950/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/90 hover:bg-slate-900"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {bbsMilestonesCompleteForPath && !isReviewPath ? (
-          <div className="mb-3 flex items-center justify-center gap-2.5 rounded-xl border border-emerald-500/25 bg-emerald-950/25 px-4 py-2.5 text-center text-xs font-semibold leading-snug text-emerald-100/95">
-            <BbsBeltLogo size={28} className="shrink-0" alt="" />
-            <p>
-              Black Belt System milestones on this path are complete (through Shodan). Focus on techniques
-              below, or use review mode when you revisit completed modules.
-            </p>
-          </div>
-        ) : null}
-        {isReviewPath ? (
-          <div className="mb-3 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-center text-xs font-semibold text-sky-100/95">
-            Review mode: revisiting techniques you have already completed.
+        {pathCompleteOpen && !stageCompleteOpen && canGenerateNext && onGenerateNextPath ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gatame-gold/35 bg-gatame-midnight/90 px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+            <p className="text-sm font-medium text-white/90">{en.pathStageComplete.bannerHint}</p>
+            <button
+              type="button"
+              onClick={() => void handleGenerateNextPath()}
+              disabled={generatingNextPath}
+              className="shrink-0 rounded-xl border border-gatame-gold/70 bg-gatame-gold/15 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-gatame-goldHi transition-colors hover:bg-gatame-gold/25 disabled:opacity-60"
+            >
+              {generatingNextPath ? en.pathStageComplete.generating : en.pathStageComplete.generateNext}
+            </button>
           </div>
         ) : null}
         <div
           ref={scrollRef}
-          className="relative max-h-[min(78vh,900px)] overflow-y-auto overflow-x-hidden rounded-2xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] lg:max-h-[min(82vh,1100px)]"
+          className={`relative overflow-y-auto rounded-2xl border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${
+            isWideLayout
+              ? 'path-board-sugoroku max-h-[min(72vh,680px)] overflow-x-auto'
+              : 'max-h-[min(84vh,640px)] overflow-x-hidden'
+          }`}
         >
           <div ref={widthRef} className="relative min-h-[420px] w-full">
             <ReactFlow
@@ -862,7 +859,9 @@ function VerticalPathInner({
             <motion.button
               type="button"
               aria-label={en.common.close}
-              className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-[2px] lg:bg-black/35"
+              className={`fixed inset-0 bg-black/50 backdrop-blur-[2px] ${
+                isWideLayout ? 'z-[80] lg:bg-black/35' : 'z-[105]'
+              }`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -885,9 +884,6 @@ function VerticalPathInner({
                     bbs={drawerBbs}
                     compact={false}
                     closeDrawer={closeDrawer}
-                    levelDeclaredMastered={bbsDeclaredMastered.has(drawerBbs.sequenceLevel)}
-                    onDeclareMastered={handleDeclareBbsMastered}
-                    onContinuePath={() => scrollToNextAfterBbs(drawerBbs.id)}
                   />
                 ) : drawerModule ? (
                   <VerticalPathDrawerPanel
@@ -904,6 +900,8 @@ function VerticalPathInner({
                     onMemoSave={handleMemoSave}
                     onRequestCompleteFeedback={beginCompleteFeedback}
                     onToggleCompleteUndo={onToggleComplete}
+                    onOpenPracticeCheck={practiceCheck.openManually}
+                    practiceCheckDisabled={!practiceCheck.hasPendingTechnique}
                   />
                 ) : null}
               </motion.div>
@@ -912,24 +910,18 @@ function VerticalPathInner({
                 key="drawer-bottom"
                 role="dialog"
                 aria-modal="true"
-                className="fixed inset-x-0 bottom-0 z-[90] flex max-h-[min(78vh,560px)] flex-col overflow-hidden rounded-t-2xl border border-slate-700/80 bg-slate-900 shadow-[0_-12px_48px_rgba(0,0,0,0.45)]"
+                className="fixed inset-0 z-[110] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-900"
                 initial={{ y: '100%' }}
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 320 }}
               >
-                <div className="flex shrink-0 justify-center pt-3 pb-2">
-                  <div className="h-1 w-10 rounded-full bg-slate-600/80" />
-                </div>
                 {drawerBbs ? (
                   <BbsOfferDrawerPanel
                     key={drawerBbs.id}
                     bbs={drawerBbs}
                     compact
                     closeDrawer={closeDrawer}
-                    levelDeclaredMastered={bbsDeclaredMastered.has(drawerBbs.sequenceLevel)}
-                    onDeclareMastered={handleDeclareBbsMastered}
-                    onContinuePath={() => scrollToNextAfterBbs(drawerBbs.id)}
                   />
                 ) : drawerModule ? (
                   <VerticalPathDrawerPanel
@@ -946,6 +938,8 @@ function VerticalPathInner({
                     onMemoSave={handleMemoSave}
                     onRequestCompleteFeedback={beginCompleteFeedback}
                     onToggleCompleteUndo={onToggleComplete}
+                    onOpenPracticeCheck={practiceCheck.openManually}
+                    practiceCheckDisabled={!practiceCheck.hasPendingTechnique}
                   />
                 ) : null}
               </motion.div>
@@ -954,16 +948,16 @@ function VerticalPathInner({
         ) : null}
       </AnimatePresence>
 
-      <BbsMilestoneCelebrateOverlay level={celebrateBbsLevel} />
-
-      <LearningPathCompleteOverlay
-        open={pathCompleteOpen}
-        fullCatalogMastered={fullCatalogMastered}
-        masteryPercent={masteryPercent}
-        bbsRankMastery={bbsRankMastery}
-        nextStageLoading={nextStageLoading}
-        canStartNext={Boolean(onPathRefresh) && !nextStageLoading}
-        onStartNextStage={handleStartNextStage}
+      <PathStageCompleteOverlay
+        open={stageCompleteOpen}
+        canGenerateNext={canGenerateNext && Boolean(onGenerateNextPath)}
+        generating={generatingNextPath}
+        onGenerateNext={() => void handleGenerateNextPath()}
+        onRetakeAssessment={() => {
+          dismissStageComplete()
+          onRequestRetake?.()
+        }}
+        onDismiss={dismissStageComplete}
       />
 
       <AnnualMembershipPromoOverlay
@@ -977,16 +971,18 @@ function VerticalPathInner({
         onClose={() => setFeedbackModuleId(null)}
         onSubmit={submitModuleFeedback}
       />
-
-      <ConfirmDialog
-        open={Boolean(bbsConfirmLevel)}
-        title={en.confirm.bbsMastered.title}
-        description={en.confirm.bbsMastered.description}
-        confirmLabel={en.confirm.bbsMastered.confirm}
-        cancelLabel={en.common.cancel}
-        tone="default"
-        onConfirm={handleConfirmBbsMastered}
-        onCancel={() => setBbsConfirmLevel(null)}
+      <PracticeCheckCard
+        open={practiceCheck.open}
+        target={practiceCheck.currentTarget}
+        status={practiceCheck.status}
+        educationMessage={practiceCheck.educationMessage}
+        bbsUrl={conversionGateUrl}
+        undoUntil={practiceCheck.undoUntil}
+        onCloseNotNow={practiceCheck.handleNotNow}
+        onBackToFocus={practiceCheck.handleBackToFocus}
+        onSuccess={practiceCheck.handleSuccess}
+        onNotWorking={practiceCheck.handleNotWorking}
+        onUndo={practiceCheck.handleUndo}
       />
     </div>
   )

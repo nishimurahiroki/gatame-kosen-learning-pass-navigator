@@ -1,9 +1,33 @@
-import { BaseEdge, getBezierPath, type EdgeProps } from 'reactflow'
+import { BaseEdge, type EdgeProps, type Position } from 'reactflow'
 
 export type TrailVariant = 'cleared' | 'locked'
 
 export interface ProgressTrailEdgeData {
   variant: TrailVariant
+}
+
+function buildTrailPath(args: {
+  sourceX: number
+  sourceY: number
+  targetX: number
+  targetY: number
+  sourcePosition?: Position
+  targetPosition?: Position
+}): string {
+  const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition } = args
+
+  // 横移動（すごろく同一行）: まず水平に出してから必要なら縦調整
+  if (sourcePosition === 'right' || sourcePosition === 'left') {
+    return `M ${sourceX} ${sourceY} L ${targetX} ${sourceY} L ${targetX} ${targetY}`
+  }
+
+  // 折り返し（下段へ）: 必ず「下に降りてから横へ」つなぐ
+  if (sourcePosition === 'bottom' && (targetPosition === 'left' || targetPosition === 'right')) {
+    return `M ${sourceX} ${sourceY} L ${sourceX} ${targetY} L ${targetX} ${targetY}`
+  }
+
+  // モバイル縦並びなど
+  return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`
 }
 
 function trailStyle(variant: TrailVariant): {
@@ -39,14 +63,13 @@ export default function ProgressTrailEdge({
   targetPosition,
   data,
 }: EdgeProps) {
-  const [path] = getBezierPath({
+  const path = buildTrailPath({
     sourceX,
     sourceY,
-    sourcePosition,
     targetX,
     targetY,
+    sourcePosition,
     targetPosition,
-    curvature: 0.35,
   })
 
   const variant = (data as ProgressTrailEdgeData | undefined)?.variant ?? 'locked'

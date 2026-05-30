@@ -78,3 +78,24 @@ export function clearOutbox(userId: string): void {
 export function outboxCount(userId: string): number {
   return loadOutbox(userId).length
 }
+
+/** Guest → Member 認証後にアウトボックスを移行（§10.8） */
+export function rekeyGuestOutbox(guestStorageId: string, userId: string): void {
+  if (!guestStorageId || !userId || guestStorageId === userId) return
+  const fromGuest = loadOutbox(guestStorageId)
+  if (fromGuest.length === 0) {
+    clearOutbox(guestStorageId)
+    return
+  }
+  const forUser = loadOutbox(userId)
+  const byKey = new Map(forUser.map((e) => [e.key, e]))
+  for (const entry of fromGuest) {
+    const existing = byKey.get(entry.key)
+    if (!existing || entry.updatedAt >= existing.updatedAt) {
+      byKey.set(entry.key, entry)
+    }
+  }
+  const merged = [...byKey.values()].sort((a, b) => a.updatedAt - b.updatedAt)
+  saveOutbox(userId, merged)
+  clearOutbox(guestStorageId)
+}

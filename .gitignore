@@ -1,0 +1,9 @@
+# Maven
+backend/target/
+
+# Frontend build
+frontend/dist/
+
+# Local env
+.env
+backend/.env

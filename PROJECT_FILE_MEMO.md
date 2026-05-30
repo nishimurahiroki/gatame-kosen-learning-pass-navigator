@@ -5,10 +5,26 @@
 このメモは、`c:\dev\Gatame 学習Pass` 配下の主要ファイルの「パス」と「役割」をまとめた一覧です。  
 今後ファイルの追加・削除があった場合は、このメモも更新します。
 
+## 仕様・UX 方針（2026-05-19 更新）
+
+製品仕様の **正** は `README.md` **§2 開発・UX方針**。
+
+| 項目 | 方針 |
+|------|------|
+| 学習パス | 診断 **§1**（Q1/Q2-alt/Q2/Q3）→ プール抽選 **§4〜7** — `specification.md` |
+| 習慣化 | Confirm Card（Focus/Triage）— `specification.md` §11 初版実装済み |
+| UI トーン | 黒 + ゴールド、プロ・道場、ゲーム調を排す |
+| 廃止済み（コード） | Pass 8 件、途中 BBS マイルストーン、「次のステージへ」オーバーレイ |
+
+実装時は **必ず `README.md`・`specification.md`・本メモ** を参照すること。
+
 ## ルート
 
 - `README.md`  
-  学習パス・ナビゲーターの仕様書（システム概要、機能、重み付けロジック）。
+  学習パス・ナビゲーターの **正式仕様書**（UX §2、**診断 §4.1**、算法 §7、デプロイ）。
+
+- `specification.md`  
+  **診断設問（§1）** ＋ **学習パス生成アルゴリズム**（§4〜7）。設問文言・プールマッピング・実行フローの正式仕様。
 
 - `PROJECT_FILE_MEMO.md`  
   本メモ。ファイルパスと役割の参照用ドキュメント。
@@ -68,7 +84,19 @@
 ### service
 
 - `backend/src/main/java/com/gatame/learningpass/service/LearningPathService.java`  
-  学習パス生成の中核ロジック（重み付け計算、ソート、BBS判定）。
+  診断 API 応答。`PathGenerationService` で生成した 4 モジュールを `recommendedModules` 先頭に並べ、残りはカタログ一覧。
+
+- `backend/src/main/java/com/gatame/learningpass/service/path/PathGenerationService.java`  
+  **`specification.md` §4〜7** のプール抽選・枠ルール・難易度ソート。
+
+- `backend/src/main/java/com/gatame/learningpass/service/path/PathPoolMappings.java`  
+  §7 スタイル / 課題 → モジュール ID プール。レガシー A〜G 互換あり。
+
+- `backend/src/main/java/com/gatame/learningpass/service/path/ModuleTier.java`  
+  §3 階層判定（FOUNDATION / INTERMEDIATE / ADVANCED）。
+
+- `backend/src/main/java/com/gatame/learningpass/service/path/PathUserLevel.java`  
+  §2 ユーザーレベル正規化（Unexperienced / Experienced / Advanced）。
 
 ### controller
 
@@ -78,10 +106,10 @@
 ### resources
 
 - `backend/src/main/resources/application.yml`  
-  Spring 設定。`server.port: ${PORT:8080}`（Render の `PORT`）、`gatame.cors.allowed-origins` は **本番 Vercel をデフォルト**、環境変数 `GATAME_CORS_ALLOWED_ORIGINS` で上書き（ローカル API 開発用）。`modules.json` パス、スコア係数など。
+  Spring 設定。`server.port: ${PORT:8080}`（Render の `PORT`）、`gatame.cors.allowed-origins` は **本番 Vercel をデフォルト**、環境変数 `GATAME_CORS_ALLOWED_ORIGINS` で上書き。ローカルは **`application-dev.yml`**（`spring.profiles.active=dev`、`npm run dev:api`）で localhost CORS。CORS 実装: `WebCorsConfig` + `GatameCorsProperties`。`modules.json` パス、スコア係数など。
 
 - `backend/.env.example`  
-  ローカルでバックエンドのみ起動するときの CORS 用（`GATAME_CORS_ALLOWED_ORIGINS=http://localhost:5173`）。Spring は標準で `.env` を読まないため、IDE の環境変数か `export` で設定する。
+  非推奨の手動 CORS 用。推奨は `npm run dev:api`（dev プロファイル）。Spring は標準で `.env` を読まない。
 
 - `backend/src/main/resources/modules.json`  
   モジュール定義データ。初期スコアや関連情報を外部管理するためのJSON。
@@ -112,7 +140,16 @@
   Reactアプリのエントリーポイント。
 
 - `frontend/src/App.tsx`  
-  画面全体のルートコンポーネント（診断フォームとスキルマップ切替）。
+  ルーティング・`SyncProvider`。**現行:** 未ログイン → `/access`。**目標:** `/` トップ + Guest で `/diagnostic`（`specification.md` **§10**）。
+
+- `frontend/src/components/TopPage.tsx`  
+  トップゲートウェイ（新規）— §10.6 の CTA 分岐。
+
+- `frontend/src/components/auth/AccessPage.tsx`  
+  Kajabi 導線・別デバイス復元・**Magic Link のみ**（§10.5）。未認証 Lookup は行わない。
+
+- `frontend/src/NavigatorApp.tsx`  
+  診断ウィザードと縦型学習パスの切替。Retake・Annual Membership プロモ等のオーケストレーション。
 
 - `frontend/src/index.css`  
   グローバルスタイル（Tailwind + React Flowスタイル読み込み）。
@@ -120,30 +157,39 @@
 ### src/types
 
 - `frontend/src/types/index.ts`  
-  共通型定義（API型、課題一覧、BBSしきい値）。
+  共通型定義（API 型、課題一覧）。旧 BBS しきい値定数は §4.5 廃止方向。
 
 ### src/api
 
+- `frontend/src/api/streetPathWithBbs.ts`  
+  **4 + 1 パス構築**（`extractGeneratedPathModules` + `buildFourPlusOnePath`：API 生成 4 モジュール + BBS コンバージョンゲート）。
+
 - `frontend/src/api/learningPathApi.ts`  
-  バックエンドAPI呼び出し処理（Axios）。
+  学習パス API・`LEARNING_PATH_TECHNIQUE_COUNT`（4）・前提チェック。`buildLearningStreetPathForPass` はレガシー互換。
 
 ### src/hooks
 
 - `frontend/src/hooks/useLearningPath.ts`  
-  学習パス取得の状態管理フック（loading/error/data）。
+  学習パス取得の状態管理（`generate` / `generateNextPath` / `reset`）。
+
+- `frontend/src/hooks/usePracticeCheck.ts`  
+  Confirm Card の対象技抽出（UI順先頭の未完了）・6時間スヌーズ判定・連続表示制御を担当。短期は `user_module_details.checked_items` を正として利用。
 
 ### src/components/assessment
 
 - `frontend/src/components/assessment/AssessmentForm.tsx`  
-  診断フォームUI（ユーザー属性・課題の入力）。
+  診断ウィザード UI。設問フローは `specification.md` **§1**（Q1 → Q2-alt または Q2 → Q3）。
 
 ### src/components/skillmap
 
-- `frontend/src/components/skillmap/SkillMap.tsx`  
-  React Flowによる技術ツリー表示、進捗管理、画像保存導線。
+- `frontend/src/components/skillmap/VerticalPathContainer.tsx`  
+  **現行** 縦型学習パス UI（README §2.3 **4 + 1**）。4 モジュール完了 → ステージ完了プロンプト → `generateNextPath`（§6.4）。
 
-- `frontend/src/components/skillmap/SkillNode.tsx`  
-  技術ノード表示コンポーネント（難易度色分け、完了ボタン）。
+- `frontend/src/components/skillmap/PathStageCompleteOverlay.tsx`  
+  ステージ完了プロンプト（Generate next path / Retake / Not now）。
+
+- `frontend/src/components/practice/PracticeCheckCard.tsx`  
+  Confirm Card 本体（成功 / Not Working / Not now、Undo 5 秒、BBS CTA）。
 
 ### src/api（Supabase 同期で追加）
 
@@ -197,7 +243,7 @@
 - `frontend/src/locales/en.json` の `pathDrawer.*` に memoSave / memoSaving / memoSaved / memoUnsaved を追加。
 
 ### #4 SignUp 成功後に自動で Sign In タブへ切替
-- `frontend/src/components/auth/LoginScreen.tsx`
+- `frontend/src/components/auth/AccessPage.tsx`
 - `signUp` 成功時に `setMode('signIn')` で即座にタブを切替、`password` フィールドをクリア。
 - 「Account created. Check your email to confirm, then sign in.」をフォーム内バナーとトースト（6 秒, success 配色）の両方で提示。
 
@@ -230,7 +276,7 @@
   - `closeAnnualPromoOnly`（Not now / 背景クリック）で `markAnnualMembershipPromoDismissed` を呼ぶ。
 
 ### #8 Forgot Password に Resend ボタンと再入力導線
-- `frontend/src/components/auth/LoginScreen.tsx`
+- `frontend/src/components/auth/AccessPage.tsx`
 - 送信成功後に CTA ラベルを「Resend reset link」に変更。直後 30 秒は「Resend in Ns」で disabled（クールダウン）。
 - 「Wrong email? Use a different address」リンクで送信状態をクリアして再入力可能に。
 - 送信状態にあっても email 入力フィールドの disabled は解除し、誤入力修正を阻害しない。
@@ -317,15 +363,41 @@
 - `isSupabaseConfigured === false` なら `EnvErrorScreen` を return。`AuthProvider` 配下のすべての副作用を未起動にする。
 - `frontend/src/context/AuthContext.tsx`
 - `supabase === null` の早期 return を追加（auth 関連の effect / signOut を no-op に）。
-- `frontend/src/components/auth/LoginScreen.tsx`
+- `frontend/src/components/auth/AccessPage.tsx`
 - Google / Email / Reset 各ハンドラ冒頭に `if (!supabase) return` ガードを追加。
 
 ### #環境変数未設定対応の追加修正（#11 余波）
 - `frontend/src/components/profile/ProfileScreen.tsx`
 - `handleSaveDisplayName` / `handleSaveEmail` / `handleSavePassword` 冒頭に `if (!supabase) return` ガードを追加（strictNullChecks 下のビルドエラー解消）。
 
+### #21 BBS Kyukyu / Sankyu 円アイコン
+- `frontend/src/constants/bbsAssets.ts` — `Kyukyu-image_Circle.webp` / `Sankyu-image_Circle.webp` マッピング。
+- `frontend/src/components/skillmap/BbsLevelCircleImage.tsx` — 級別円画像（未対応級はベルトロゴ）。
+- `BbsPathStepNode.tsx` / `BbsOfferDrawerPanel.tsx` — `BbsBeltLogo` → `BbsLevelCircleImage`。
+- 仕様: `specification.md` §12.2。
+
+### #20 学習パス モジュール円アイコン（`image/`）
+- **方針:** 学習パス `PathStepNode` の円内に、モジュール ID 対応の静的画像を表示。`image/` は Vite alias `@image`。
+- `frontend/src/constants/moduleCircleImages.ts` — 18 モジュール分の import + `getModuleCircleImageSrc()`。
+- `frontend/src/components/skillmap/PathStepNode.tsx` — ローカル画像 → API `thumbnailUrl` → 頭文字の順でフォールバック。
+- 画像一覧・対応表: `specification.md` §12.1。
+- BBS 第 5 ノードは Kyukyu / Sankyu 級別円画像（§12.2）。それ以外は `bbsAssets.ts` ベルトロゴ。
+
+### #19 Annual Membership 分岐（Q4・Bottom Bar・動画 CTA）
+- **方針:** Login / Unlock 自己申告を廃止し、Annual Membership（Q4 + 1 問モーダル）で動画ルーティングを統一。アプリログイン（Supabase）と Kajabi 動画ログインを分離。
+- `frontend/src/utils/annualMembershipAccess.ts` — `gatame.annual-membership-access.v2`（`answered` + `hasAnnual`）。旧 `member-self-declare` / `annual-membership-purchased.v1` を移行。
+- `frontend/src/context/MembershipAccessContext.tsx` — `hasAnnualMembership` / `hasAnswered` / `setAnnualMembership` / `markAnnualPurchased`。
+- `frontend/src/components/assessment/AssessmentForm.tsx` — Q4 追加（補足: +150 technique video library on Gatame Kosen Online）。
+- `frontend/src/components/membership/MembershipOfferSheet.tsx` — 案 C ハイブリッド（View plans → checkout、I already purchased → hasAnnual + Kajabi）。
+- `frontend/src/components/membership/AnnualMembershipAskModal.tsx` — 既存ユーザー向け 1 問モーダル。
+- `frontend/src/components/layout/AppBottomBar.tsx` — 中央: Videos / Membership。Profile: Supabase ログイン済みなら常時 Profile。
+- `frontend/src/components/skillmap/ReferenceVideoAccessPromo.tsx` — Watch Video / Get Membership 分岐。
+- `frontend/src/utils/membershipOfferEvent.ts` — `openMembershipOffer()`（旧 Unlock メニュー置換）。
+- Checkout URL: `https://www.kosenjudoonline.com/offers/RsoV92Tp/checkout`（`kajabiCheckout.ts`）。
+- 仕様: `specification.md` §1 Q4、§10.14。
+
 ### #18 Sign Up モードのパスワード強度ヒント表示
-- `frontend/src/components/auth/LoginScreen.tsx`
+- `frontend/src/components/auth/AccessPage.tsx`
 - `evaluatePasswordStrength(pw)`: 0–4 のスコア（長さ・大小英字混在・数字・記号）でラベルとヒント生成。
 - Sign Up タブ かつ `password.length > 0` のときだけ password 入力下に 4 セグメントバー + ラベル + 改善ヒントを表示。
 - 配色: score 0–1 赤, 2 amber, 3 lime, 4 emerald。a11y のため `aria-live="polite"`。
@@ -361,4 +433,22 @@
 - 「✓ Password updated」見出し、説明（前セッションは sign out 済み）、「Continue to sign in」ボタンを表示。
 - ボタン押下時のみ `/` へ遷移。
 - supabase が null（env 未設定）の場合は `setHasSession(false)` で早期停止。
+
+---
+
+## ログイン・同期（§10 実装 2026-05-26）
+
+**正:** [`specification.md` §10](specification.md)
+
+| ファイル | 役割 |
+|----------|------|
+| `frontend/src/components/TopPage.tsx` | `/` ゲートウェイ CTA |
+| `frontend/src/App.tsx` | ルーティング、認証後 `mergeGuestOnSignIn` |
+| `frontend/src/NavigatorApp.tsx` | Guest/Member 切替、`GuestSyncBanner` |
+| `frontend/src/components/auth/SyncSaveModal.tsx` | JIT 同期（Magic Link） |
+| `frontend/src/utils/guestDevice.ts` | `guest:<deviceId>` |
+| `frontend/src/sync/mergeGuestOnSignIn.ts` | 初回マージ + outbox re-key |
+| `frontend/src/hooks/useLearningPath.ts` | `{ storageId, syncUserId }` |
+
+Supabase 初回設定: `specification.md` **§10.13**
 

@@ -4,46 +4,43 @@ import type {
   AssessmentRequest,
   AspirationStyleLabel,
   FinalGoalLabel,
-  InterestOrientation,
   PainPointOption,
   UserSegment,
 } from '../../types'
+import { saveAnnualMembershipAccess } from '../../utils/annualMembershipAccess'
+import { PAIN_POINT_OPTIONS, USER_SEGMENT_TO_ATTRIBUTE } from '../../types'
 import en from '../../locales/en.json'
-import {
-  PAIN_POINT_OPTIONS,
-  PROBLEM_ID_TO_LETTER,
-  USER_SEGMENT_TO_ATTRIBUTE,
-} from '../../types'
 import AssessmentStatementList from './AssessmentStatementList'
 
-type StepId = 'q1' | 'q2_interests' | 'q3_pains' | 'q2_alt' | 'q5'
+/** specification.md §1 — Q1 → Q2-alt|Q2 → Q3 → Q4 */
+type StepId = 'q1' | 'q2_alt' | 'q2_pains' | 'q3_goal' | 'q4_annual'
 
 type WizardState = {
   stepId: StepId
   segment: UserSegment | null
-  interests: InterestOrientation | null
   painIds: string[]
   aspirations: AspirationStyleLabel[]
   finalGoal: FinalGoalLabel | null
+  annualMembership: boolean | null
   uiPhase: 'wizard' | 'submitting'
 }
 
 const initialWizard: WizardState = {
   stepId: 'q1',
   segment: null,
-  interests: null,
   painIds: [],
   aspirations: [],
   finalGoal: null,
+  annualMembership: null,
   uiPhase: 'wizard',
 }
 
 type Action =
   | { type: 'SET_SEGMENT'; segment: UserSegment }
-  | { type: 'SET_INTEREST'; value: InterestOrientation }
   | { type: 'TOGGLE_PAIN'; id: string }
   | { type: 'TOGGLE_ASPIRATION'; label: AspirationStyleLabel }
   | { type: 'SET_GOAL'; goal: FinalGoalLabel }
+  | { type: 'SET_ANNUAL'; hasAnnual: boolean }
   | { type: 'NEXT' }
   | { type: 'BACK' }
   | { type: 'SUBMIT_START' }
@@ -55,14 +52,13 @@ function isNovice(s: UserSegment | null): boolean {
 
 function stepOrder(segment: UserSegment | null): StepId[] {
   if (!segment) return ['q1']
-  if (isNovice(segment)) return ['q1', 'q2_alt', 'q5']
-  return ['q1', 'q2_interests', 'q3_pains', 'q5']
+  if (isNovice(segment)) return ['q1', 'q2_alt', 'q3_goal', 'q4_annual']
+  return ['q1', 'q2_pains', 'q3_goal', 'q4_annual']
 }
 
 function progressOf(stepId: StepId, segment: UserSegment | null): { current: number; total: number } {
   if (!segment) {
-    // セグメント未選択時は経路総数が未確定。「q1 を回答中（completed=0）」として扱う。
-    return { current: 0, total: 4 }
+    return { current: 1, total: 4 }
   }
   const order = stepOrder(segment)
   const idx = Math.max(0, order.indexOf(stepId))
@@ -79,13 +75,10 @@ function wizardReducer(state: WizardState, action: Action): WizardState {
         ...state,
         segment: action.segment,
         stepId: 'q1',
-        interests: novice ? null : state.interests,
         painIds: novice ? [] : state.painIds,
         aspirations: novice ? state.aspirations : [],
       }
     }
-    case 'SET_INTEREST':
-      return { ...state, interests: action.value }
     case 'TOGGLE_PAIN': {
       const set = new Set(state.painIds)
       set.has(action.id) ? set.delete(action.id) : set.add(action.id)
@@ -98,6 +91,8 @@ function wizardReducer(state: WizardState, action: Action): WizardState {
     }
     case 'SET_GOAL':
       return { ...state, finalGoal: action.goal }
+    case 'SET_ANNUAL':
+      return { ...state, annualMembership: action.hasAnnual }
     case 'NEXT': {
       const order = stepOrder(state.segment)
       const i = order.indexOf(state.stepId)
@@ -128,13 +123,6 @@ const SEGMENT_ITEMS = en.assessment.segments.map((row) => ({
   description: row.subtitle,
 }))
 
-const INTEREST_ITEMS = en.assessment.interests.map((row) => ({
-  id: row.value,
-  value: row.value as InterestOrientation,
-  title: row.title,
-  description: row.body,
-}))
-
 const NOVICE_VIBE_ITEMS = en.assessment.noviceVibes.map((row) => ({
   id: row.label,
   label: row.label as AspirationStyleLabel,
@@ -147,6 +135,12 @@ const GOAL_ITEMS = en.assessment.goals.map((row) => ({
   goal: row.goal as FinalGoalLabel,
   title: row.title,
   description: row.body,
+}))
+
+const ANNUAL_ITEMS = en.assessment.annualMembershipChoices.map((row) => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
 }))
 
 const PAIN_ITEMS = PAIN_POINT_OPTIONS.map((p: PainPointOption) => ({
@@ -171,14 +165,9 @@ function buildPayload(state: WizardState): AssessmentRequest {
     }
   }
 
-  const letters = state.painIds
-    .map((id) => PROBLEM_ID_TO_LETTER[id])
-    .filter((x): x is string => Boolean(x))
-
   return {
     userAttribute,
-    interests: state.interests ?? undefined,
-    problems: letters,
+    problems: [...state.painIds],
     aspirations: [],
     finalGoal: state.finalGoal,
     completedModuleIds: [],
@@ -211,27 +200,28 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
     switch (state.stepId) {
       case 'q1':
         return state.segment !== null
-      case 'q2_interests':
-        return state.interests !== null
-      case 'q3_pains':
+      case 'q2_pains':
         return true
       case 'q2_alt':
         return state.aspirations.length > 0
-      case 'q5':
+      case 'q3_goal':
         return state.finalGoal !== null
+      case 'q4_annual':
+        return state.annualMembership !== null
       default:
         return false
     }
   }, [state])
 
   const handleSubmitWizard = async () => {
-    if (!canProceed() || state.stepId !== 'q5') return
+    if (!canProceed() || state.stepId !== 'q4_annual') return
     dispatch({ type: 'SUBMIT_START' })
     try {
       const payload = buildPayload(state)
+      saveAnnualMembershipAccess(state.annualMembership === true)
       await onSubmit(payload)
     } catch {
-      /* 親で error に載る。オーバーレイは finally で解除 */
+      /* 親で error に載る */
     } finally {
       dispatch({ type: 'SUBMIT_END' })
     }
@@ -247,15 +237,11 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
         </h2>
         <div className="mb-2 flex justify-between text-xs text-white/50">
           <span>
-            {state.segment
-              ? en.assessment.questionProgress
-                  .replace('{current}', String(current))
-                  .replace('{total}', String(total))
-              : en.assessment.questionProgress
-                  .replace('{current}', '1')
-                  .replace('{total}', '?')}
+            {en.assessment.questionProgress
+              .replace('{current}', String(current))
+              .replace('{total}', String(total))}
           </span>
-          <span>{state.segment && total > 0 ? Math.round((current / total) * 100) : 0}%</span>
+          <span>{total > 0 ? Math.round((current / total) * 100) : 0}%</span>
         </div>
         <div className="flex h-2 gap-1">
           {Array.from({ length: total }).map((_, i) => (
@@ -295,31 +281,14 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
                 </section>
               )}
 
-              {state.stepId === 'q2_interests' && (
-                <section aria-labelledby="q2-title">
-                  <h3 id="q2-title" className={`${stepHeadingClass} mb-2`}>
-                    {en.assessment.q2InterestTitle}
+              {state.stepId === 'q2_pains' && (
+                <section aria-labelledby="q2-pains-title">
+                  <h3 id="q2-pains-title" className={`${stepHeadingClass} mb-2`}>
+                    {en.assessment.q2PainsTitle}
                   </h3>
-                  <p className={stepHintClass}>{en.assessment.chooseOneHint}</p>
+                  <p className={stepHintClass}>{en.assessment.q2PainsHint}</p>
                   <AssessmentStatementList
-                    aria-labelledby="q2-title"
-                    items={INTEREST_ITEMS}
-                    selectedId={state.interests}
-                    onSelect={(id) =>
-                      dispatch({ type: 'SET_INTEREST', value: id as InterestOrientation })
-                    }
-                  />
-                </section>
-              )}
-
-              {state.stepId === 'q3_pains' && (
-                <section aria-labelledby="q3-title">
-                  <h3 id="q3-title" className={`${stepHeadingClass} mb-2`}>
-                    {en.assessment.q3PainsTitle}
-                  </h3>
-                  <p className={stepHintClass}>{en.assessment.q3PainsHint}</p>
-                  <AssessmentStatementList
-                    aria-labelledby="q3-title"
+                    aria-labelledby="q2-pains-title"
                     items={PAIN_ITEMS}
                     selectedIds={state.painIds}
                     onSelect={(id) => dispatch({ type: 'TOGGLE_PAIN', id })}
@@ -347,19 +316,33 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
                 </section>
               )}
 
-              {state.stepId === 'q5' && (
-                <section aria-labelledby="q5-title">
-                  <h3 id="q5-title" className={`${stepHeadingClass} mb-2`}>
-                    {en.assessment.q5Title}
+              {state.stepId === 'q3_goal' && (
+                <section aria-labelledby="q3-goal-title">
+                  <h3 id="q3-goal-title" className={`${stepHeadingClass} mb-2`}>
+                    {en.assessment.q3GoalTitle}
                   </h3>
                   <p className={stepHintClass}>{en.assessment.chooseOneHint}</p>
                   <AssessmentStatementList
-                    aria-labelledby="q5-title"
+                    aria-labelledby="q3-goal-title"
                     items={GOAL_ITEMS}
                     selectedId={state.finalGoal}
                     onSelect={(id) =>
                       dispatch({ type: 'SET_GOAL', goal: id as FinalGoalLabel })
                     }
+                  />
+                </section>
+              )}
+              {state.stepId === 'q4_annual' && (
+                <section aria-labelledby="q4-annual-title">
+                  <h3 id="q4-annual-title" className={`${stepHeadingClass} mb-2`}>
+                    {en.assessment.q4AnnualTitle}
+                  </h3>
+                  <p className={stepHintClass}>{en.assessment.q4AnnualHint}</p>
+                  <AssessmentStatementList
+                    aria-labelledby="q4-annual-title"
+                    items={ANNUAL_ITEMS}
+                    selectedId={state.annualMembership === null ? null : state.annualMembership ? 'yes' : 'no'}
+                    onSelect={(id) => dispatch({ type: 'SET_ANNUAL', hasAnnual: id === 'yes' })}
                   />
                 </section>
               )}
@@ -384,7 +367,7 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
                 {en.assessment.back}
               </button>
             )}
-            {state.stepId !== 'q5' ? (
+            {state.stepId !== 'q4_annual' ? (
               <button
                 type="button"
                 disabled={!canProceed()}

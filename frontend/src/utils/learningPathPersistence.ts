@@ -68,3 +68,8 @@ export function clearSavedLearningPath(userId: string): void {
     /* ignore */
   }
 }
+
+/** 診断完了・学習パス生成済みの保存があるか（途中離脱は含まない） */
+export function isLocalPathReady(storageId: string): boolean {
+  return loadSavedLearningPath(storageId) != null
+}

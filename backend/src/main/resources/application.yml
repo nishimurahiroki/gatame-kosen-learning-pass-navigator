@@ -13,7 +13,8 @@ gatame:
     config-path: classpath:modules.json
 
   cors:
-    # 本番 URL をデフォルト。ローカルは GATAME_CORS_ALLOWED_ORIGINS=http://localhost:5173 を設定。
+    # 本番デフォルト（Vercel）。ローカルは spring.profiles.active=dev または GATAME_CORS_ALLOWED_ORIGINS。
+    # 複数 Origin はカンマ区切り（WebCorsConfig）。LOCAL_DEVELOPMENT.md 参照。
     allowed-origins: ${GATAME_CORS_ALLOWED_ORIGINS:https://gatame-kosen-learning-pass-navigato.vercel.app}
 
   scoring:

@@ -1,7 +1,9 @@
 import { memo, useCallback, useState, type MouseEvent } from 'react'
-import { Handle, Position, type NodeProps } from 'reactflow'
-import en from '../../locales/en.json'
+import { type NodeProps } from 'reactflow'
+import { getModuleCircleImageSrc, getModuleCircleContentAnchor } from '../../constants/moduleCircleImages'
 import type { ScoredModule } from '../../types'
+import CircleCoverImage from './CircleCoverImage'
+import { PathTrailHandles } from './pathTrailHandles'
 
 export type PathStepVisualState = 'completed' | 'active' | 'locked' | 'waiting'
 
@@ -49,25 +51,20 @@ function LockIcon({ className }: { className?: string }) {
   )
 }
 
-function ModuleThumbCircle({ module, size }: { module: ScoredModule; size: number }) {
+function ModuleThumbCircle({ module }: { module: ScoredModule }) {
   const [broken, setBroken] = useState(false)
-  if (!module.thumbnailUrl || broken) {
+  const src = getModuleCircleImageSrc(module.id) ?? module.thumbnailUrl
+  if (!src || broken) {
     return (
-      <span
-        className="flex items-center justify-center rounded-full bg-slate-800 font-black text-gatame-gold/90"
-        style={{ width: size, height: size, fontSize: Math.max(18, size * 0.28) }}
-      >
+      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-800 font-black text-gatame-gold/90 text-[clamp(1rem,28%,2rem)]">
         {module.name.slice(0, 1)}
       </span>
     )
   }
   return (
-    <img
-      src={module.thumbnailUrl}
-      alt=""
-      className="rounded-full object-cover"
-      style={{ width: size, height: size }}
-      loading="lazy"
+    <CircleCoverImage
+      src={src}
+      contentAnchor={getModuleCircleContentAnchor(module.id)}
       onError={() => setBroken(true)}
     />
   )
@@ -94,7 +91,6 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
   const ringActive = visualState === 'active' ? 'path-node-active-ring' : ''
   const sizeScale = isWide ? 1.12 : 1
   const inner = Math.round(nodeBox * 0.82 * sizeScale)
-  const thumbSize = Math.round(inner * 0.82)
 
   const openDetail = useCallback(
     (e: MouseEvent) => {
@@ -104,25 +100,14 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
     [clickable, module.id, onOpen],
   )
 
-  const lockedByPrereq = !prerequisitesMet && !completed
   const completeDisabled =
     !completed &&
     (!prerequisitesMet || module.locked || visualState !== 'active' || !todosComplete)
 
-  const completeLabel = completed
-    ? en.pathNode.completeDoneTapUndo
-    : lockedByPrereq
-      ? en.pathNode.completePrereqHint
-      : module.locked
-        ? en.pathNode.locked
-        : visualState === 'waiting'
-          ? en.pathNode.waiting
-          : !todosComplete
-            ? en.pathNode.finishTodosInPanel
-            : en.pathNode.markCompleted
+  const completeLabel = 'Completed'
 
-  const labelH = 76
-  const btnH = 52
+  const labelH = isWide ? 76 : 56
+  const btnH = isWide ? 52 : 44
   const mx = (outerWidth - nodeBox) / 2
 
   const handleCompleteClick = useCallback(
@@ -148,11 +133,7 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
         className="relative flex shrink-0 items-center justify-center"
         style={{ width: nodeBox, height: nodeBox, marginLeft: mx, marginRight: mx }}
       >
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="!h-2 !w-2 !border-0 !bg-transparent !opacity-0"
-        />
+        <PathTrailHandles nodeBox={nodeBox} />
 
         <div
           role={clickable ? 'button' : undefined}
@@ -166,7 +147,7 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
             }
           }}
           className={[
-            'relative flex items-center justify-center rounded-full border-2 bg-slate-900/92 backdrop-blur-md transition-transform',
+            'relative overflow-hidden rounded-full border-2 bg-slate-900/92 backdrop-blur-md transition-transform',
             ringActive,
             visualState === 'active'
               ? 'border-gatame-gold shadow-[0_12px_40px_rgba(197,160,89,0.35),0_4px_16px_rgba(0,0,0,0.45)]'
@@ -180,7 +161,7 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
           ].join(' ')}
           style={{ width: inner, height: inner }}
         >
-          <ModuleThumbCircle module={module} size={thumbSize} />
+          <ModuleThumbCircle module={module} />
 
           {visualState === 'completed' ? (
             <span className="absolute -bottom-0.5 -right-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 shadow-lg ring-2 ring-slate-950">
@@ -189,17 +170,14 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
           ) : null}
 
           {visualState === 'locked' ? (
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-slate-950/58">
-              <LockIcon className="h-7 w-7 text-slate-500" />
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/82">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-950/75 ring-2 ring-gatame-gold/70 shadow-[0_0_18px_rgba(212,175,55,0.45)]">
+                <LockIcon className="h-6 w-6 text-gatame-goldHi" />
+              </span>
             </span>
           ) : null}
         </div>
 
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!h-2 !w-2 !border-0 !bg-transparent !opacity-0"
-        />
       </div>
 
       <div className="mt-1 w-full px-1 text-center" style={{ minHeight: labelH - 8 }}>
@@ -215,14 +193,16 @@ const PathStepNode = memo(({ data, selected }: NodeProps<PathStepNodeData>) => {
         </p>
       </div>
 
-      <div className="nodrag nopan mt-1 w-full max-w-[260px] px-1">
+      <div className="nodrag nopan mt-0.5 w-full max-w-[260px] px-1">
         <button
           type="button"
           disabled={!completed && completeDisabled}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={handleCompleteClick}
-          className={`w-full rounded-xl py-2.5 text-xs font-bold transition-colors active:scale-[0.99] ${
+          className={`w-full rounded-xl text-xs font-bold transition-colors active:scale-[0.99] ${
+            isWide ? 'py-2.5' : 'py-2'
+          } ${
             completed
               ? 'border border-emerald-500/50 bg-emerald-600/20 text-emerald-200 hover:bg-emerald-600/30'
               : completeDisabled

@@ -5,10 +5,8 @@ import com.gatame.learningpass.domain.FinalGoal;
 import com.gatame.learningpass.domain.InterestOrientation;
 import com.gatame.learningpass.domain.UserAttribute;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -24,13 +22,12 @@ public record AssessmentRequest(
     InterestOrientation interests,
 
     List<
-        @Pattern(regexp = "(?i)[A-G]", message = "problems は A〜G のみ指定できます")
         String> problems,
 
-    /** 未経験者向け憧れスタイル（Q2-alt）。複数選択可。 */
+    /** 未経験者向け Q2-alt（複数選択可）。 */
     List<AspirationStyle> aspirations,
 
-    /** 最終ゴール（Q5）。スコアには影響しない。 */
+    /** 最終ゴール（Q3）。パス抽選には使わない。 */
     FinalGoal finalGoal,
 
     /** ユーザーが完了済みのモジュールID（前提関係・Ukemi 判定に使用） */
@@ -44,7 +41,8 @@ public record AssessmentRequest(
             ? List.of()
             : problems.stream()
                 .filter(Objects::nonNull)
-                .map(s -> s.trim().toUpperCase(Locale.ROOT))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
                 .toList();
         aspirations = aspirations == null ? List.of() : List.copyOf(aspirations);
         completedModuleIds = completedModuleIds == null ? List.of() : List.copyOf(completedModuleIds);

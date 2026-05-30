@@ -36,18 +36,132 @@ export function progressSessionId(req: AssessmentRequest | null): string {
   return assessmentFingerprint(req)
 }
 
+type PathSessionPayloadV1 = {
+  v: 1
+  pathSignature: string
+  completedIds: string[]
+}
+
+/** 現在パス上のモジュール ID からセッション署名を生成（パス再生成時に進捗を切り替える） */
+export function pathModuleSignature(pathModuleIds: string[]): string {
+  return hashFingerprint([...pathModuleIds].sort().join('\u0001'))
+}
+
+function readSessionPayload(raw: string): PathSessionPayloadV1 | string[] | null {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) return parsed
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      (parsed as PathSessionPayloadV1).v === 1 &&
+      typeof (parsed as PathSessionPayloadV1).pathSignature === 'string' &&
+      Array.isArray((parsed as PathSessionPayloadV1).completedIds)
+    ) {
+      return parsed as PathSessionPayloadV1
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function loadCompletedModuleIds(
   req: AssessmentRequest | null,
   validIds: Set<string>,
 ): Set<string> {
+  return loadPathSessionCompletedIds(req, [...validIds])
+}
+
+/**
+ * 現在の学習パス（モジュール構成）に紐づくセッション完了 ID。
+ * パス署名が一致しない場合は空（新パス生成直後の誤復元を防ぐ）。
+ */
+export function loadPathSessionCompletedIds(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+): Set<string> {
+  if (!req || pathModuleIds.length === 0) return new Set()
+  const expectedSig = pathModuleSignature(pathModuleIds)
+  const onPath = new Set(pathModuleIds)
   try {
     const raw = localStorage.getItem(storageKey(req))
     if (!raw) return new Set()
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return new Set()
-    return new Set(parsed.filter((id): id is string => typeof id === 'string' && validIds.has(id)))
+    const payload = readSessionPayload(raw)
+    if (!payload) return new Set()
+    if (Array.isArray(payload)) {
+      // 旧形式は誤復元（全モジュール Completed）の原因になるため読み込まない
+      return new Set()
+    }
+    if (payload.pathSignature !== expectedSig) return new Set()
+    return new Set(
+      payload.completedIds.filter((id): id is string => typeof id === 'string' && onPath.has(id)),
+    )
   } catch {
     return new Set()
+  }
+}
+
+/** 学習パス新規生成時: 完了状態をリセットし、現在パス署名を保存 */
+export function initializePathSessionProgress(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+): void {
+  savePathSessionCompletedIds(req, pathModuleIds, new Set())
+}
+
+/**
+ * 保存済みパスと進捗署名を揃える（ハイドレート時・旧形式データの修復）。
+ * 署名不一致・旧配列形式のときはセッション完了を空にする。
+ */
+export function ensurePathSessionAligned(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+): void {
+  if (!req || pathModuleIds.length === 0) return
+  const expectedSig = pathModuleSignature(pathModuleIds)
+  try {
+    const raw = localStorage.getItem(storageKey(req))
+    if (!raw) {
+      initializePathSessionProgress(req, pathModuleIds)
+      return
+    }
+    const payload = readSessionPayload(raw)
+    if (Array.isArray(payload) || !payload || payload.pathSignature !== expectedSig) {
+      initializePathSessionProgress(req, pathModuleIds)
+    }
+  } catch {
+    initializePathSessionProgress(req, pathModuleIds)
+  }
+}
+
+export function clearPathSessionProgress(req: AssessmentRequest | null): void {
+  if (!req) return
+  try {
+    localStorage.removeItem(storageKey(req))
+    notifyModuleProgressChanged()
+  } catch {
+    /* ignore */
+  }
+}
+
+export function savePathSessionCompletedIds(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+  ids: Set<string>,
+): void {
+  if (!req || pathModuleIds.length === 0) return
+  const onPath = new Set(pathModuleIds)
+  const payload: PathSessionPayloadV1 = {
+    v: 1,
+    pathSignature: pathModuleSignature(pathModuleIds),
+    completedIds: [...ids].filter((id) => onPath.has(id)),
+  }
+  try {
+    localStorage.setItem(storageKey(req), JSON.stringify(payload))
+    notifyModuleProgressChanged()
+  } catch {
+    /* ignore */
   }
 }
 
@@ -63,14 +177,6 @@ export function notifyModuleProgressChanged(): void {
   }
 }
 
-export function saveCompletedModuleIds(req: AssessmentRequest | null, ids: Set<string>): void {
-  try {
-    localStorage.setItem(storageKey(req), JSON.stringify([...ids]))
-    notifyModuleProgressChanged()
-  } catch {
-    /* ストレージ満杯・プライベートモード等は無視 */
-  }
-}
 
 function lifetimeKey(req: AssessmentRequest | null): string {
   return LIFETIME_PREFIX + assessmentFingerprint(req)
@@ -89,16 +195,26 @@ export function loadLifetimeMasteredModuleIds(req: AssessmentRequest | null): Se
   }
 }
 
-/** セッション JSON の完了 ID（validIds フィルタなし・BBS ノード除外）。Pass ピン留め・Profile 集計に使用。 */
-export function loadRawSessionCompletedModuleIds(req: AssessmentRequest | null): Set<string> {
+/**
+ * セッション JSON の完了 ID（BBS ノード除外）。
+ * pathModuleIds がある場合は {@link loadPathSessionCompletedIds} と同じく署名付き読み込み。
+ */
+export function loadRawSessionCompletedModuleIds(
+  req: AssessmentRequest | null,
+  pathModuleIds?: string[],
+): Set<string> {
   if (!req) return new Set()
+  if (pathModuleIds && pathModuleIds.length > 0) {
+    return loadPathSessionCompletedIds(req, pathModuleIds)
+  }
   try {
     const raw = localStorage.getItem(storageKey(req))
     if (!raw) return new Set()
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return new Set()
+    const payload = readSessionPayload(raw)
+    if (!payload) return new Set()
+    const ids = Array.isArray(payload) ? payload : payload.completedIds
     const out = new Set<string>()
-    for (const id of parsed) {
+    for (const id of ids) {
       if (typeof id === 'string' && !id.startsWith('bbs-offer:')) out.add(id)
     }
     return out
@@ -118,6 +234,50 @@ export function countCompletedTechniqueModules(req: AssessmentRequest | null): n
   return merged.size
 }
 
+/** 現在パスのセッション完了 ID を lifetime に昇格（次パス生成の除外用） */
+export function promotePathSessionToLifetime(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+): void {
+  if (!req || pathModuleIds.length === 0) return
+  const sessionCompleted = loadPathSessionCompletedIds(req, pathModuleIds)
+  mergeLifetimeMasteredModuleIds(req, sessionCompleted)
+}
+
+/** 次パス生成 API 用: lifetime 習得済みモジュール ID 一覧 */
+export function buildCompletedModuleIdsForRegeneration(req: AssessmentRequest | null): string[] {
+  if (!req) return []
+  return [...loadLifetimeMasteredModuleIds(req)].filter((id) => !id.startsWith('bbs-offer:'))
+}
+
+/** lifetime ∪ 現在パス session の習得済み数（副作用なし） */
+export function countMasteredModuleIdsForRegeneration(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+): number {
+  if (!req) return 0
+  const merged = new Set<string>()
+  for (const id of loadLifetimeMasteredModuleIds(req)) {
+    if (!id.startsWith('bbs-offer:')) merged.add(id)
+  }
+  for (const id of loadPathSessionCompletedIds(req, pathModuleIds)) {
+    if (!id.startsWith('bbs-offer:')) merged.add(id)
+  }
+  return merged.size
+}
+
+/** カタログに未習得モジュールが残っているか（次パス生成可否の目安） */
+export function canGenerateNextPath(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+  catalogModuleTotal: number,
+): boolean {
+  if (!req || pathModuleIds.length === 0) return false
+  return (
+    countMasteredModuleIdsForRegeneration(req, pathModuleIds) < Math.max(1, catalogModuleTotal)
+  )
+}
+
 export function mergeLifetimeMasteredModuleIds(req: AssessmentRequest | null, ids: Iterable<string>): boolean {
   if (!req) return false
   const cur = loadLifetimeMasteredModuleIds(req)
@@ -128,6 +288,25 @@ export function mergeLifetimeMasteredModuleIds(req: AssessmentRequest | null, id
       cur.add(id)
       changed = true
     }
+  }
+  if (!changed) return false
+  try {
+    localStorage.setItem(lifetimeKey(req), JSON.stringify([...cur]))
+    notifyModuleProgressChanged()
+  } catch {
+    return false
+  }
+  return true
+}
+
+/** 完了 Undo 時: lifetime から除外（次パス抽選・Profile 進捗の整合） */
+export function removeLifetimeMasteredModuleIds(req: AssessmentRequest | null, ids: Iterable<string>): boolean {
+  if (!req) return false
+  const cur = loadLifetimeMasteredModuleIds(req)
+  let changed = false
+  for (const id of ids) {
+    if (typeof id !== 'string' || id.startsWith('bbs-offer:')) continue
+    if (cur.delete(id)) changed = true
   }
   if (!changed) return false
   try {

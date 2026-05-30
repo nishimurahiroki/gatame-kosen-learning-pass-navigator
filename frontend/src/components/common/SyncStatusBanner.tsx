@@ -2,34 +2,34 @@ import { useSync } from '../../context/SyncContext'
 import en from '../../locales/en.json'
 
 /**
- * 画面上部に固定表示するクラウド同期ステータス。
- * 未送信がある・失敗した・オフラインのときだけ目立つ表示になる。
+ * 画面上部に固定オーバーレイ表示するクラウド同期ステータス。
+ * 保存中（syncing）は出さない。pending は一定時間続いたときのみ。
+ * レイアウトは押し下げない（案1 + オーバーレイ）。
  */
 export default function SyncStatusBanner() {
-  const { status, pendingCount, lastError, retryNow, discardUnsaved } = useSync()
+  const { showBanner, bannerStatus, pendingCount, lastError, retryNow, discardUnsaved } = useSync()
 
-  if (status === 'synced') return null
+  if (!showBanner) return null
 
-  const copy = en.sync.banner[status]
-  const showRetry = status === 'error' || status === 'offline' || status === 'pending'
+  const copy = en.sync.banner[bannerStatus]
+  const showRetry =
+    bannerStatus === 'error' || bannerStatus === 'offline' || bannerStatus === 'pending'
 
   const toneClass =
-    status === 'syncing'
-      ? 'border-sky-500/40 bg-sky-950/90 text-sky-100'
-      : status === 'offline'
-        ? 'border-amber-500/40 bg-amber-950/90 text-amber-100'
-        : 'border-rose-500/40 bg-rose-950/90 text-rose-100'
+    bannerStatus === 'offline'
+      ? 'border-amber-500/40 bg-amber-950/90 text-amber-100'
+      : 'border-rose-500/40 bg-rose-950/90 text-rose-100'
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`fixed inset-x-0 top-0 z-[100] border-b px-4 py-2.5 text-center text-sm shadow-lg backdrop-blur-sm ${toneClass}`}
+      className={`pointer-events-auto fixed inset-x-0 top-0 z-[100] border-b px-4 py-2.5 text-center text-sm shadow-lg backdrop-blur-sm ${toneClass}`}
     >
       <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-2">
         <span>
           {copy}
-          {pendingCount > 0 && status !== 'syncing'
+          {pendingCount > 0
             ? ` (${en.sync.pendingCount.replace('{n}', String(pendingCount))})`
             : null}
         </span>
@@ -42,7 +42,7 @@ export default function SyncStatusBanner() {
             {en.sync.retry}
           </button>
         ) : null}
-        {status === 'error' ? (
+        {bannerStatus === 'error' ? (
           <button
             type="button"
             onClick={discardUnsaved}
@@ -52,7 +52,7 @@ export default function SyncStatusBanner() {
           </button>
         ) : null}
       </div>
-      {lastError && status === 'error' ? (
+      {lastError && bannerStatus === 'error' ? (
         <p className="mx-auto mt-1 max-w-2xl text-[11px] leading-snug opacity-90">
           {en.sync.errorDetail}: {lastError}
         </p>

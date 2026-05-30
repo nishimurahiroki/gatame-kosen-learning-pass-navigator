@@ -5,15 +5,15 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { ghostGoldCtaSubtleClass } from '../../constants/brandTheme'
 import { GATAME_ANNUAL_JOIN_CHECKOUT_URL } from '../../constants/kajabiCheckout'
-import {
-  ANNUAL_MEMBERSHIP_PURCHASED_STORAGE_KEY,
-  loadAnnualMembershipPurchased,
-} from '../../utils/annualMembershipPromoStorage'
+import { useMembershipAccess } from '../../context/MembershipAccessContext'
+import en from '../../locales/en.json'
+import { openMembershipOffer } from '../../utils/membershipOfferEvent'
 import type { AssessmentRequest } from '../../types'
 import {
   countCompletedTechniqueModules,
   GATAME_MODULE_PROGRESS_CHANGED_EVENT,
 } from '../../utils/progressStorage'
+import ProfileSyncStatus from './ProfileSyncStatus'
 
 const underlineInput =
   'w-full border-0 border-b border-gatame-gold/30 bg-transparent py-2.5 text-[15px] text-white placeholder:text-white/35 outline-none transition-colors focus:border-gatame-goldHi focus:ring-0'
@@ -81,18 +81,13 @@ export default function ProfileScreen({
 
   const [modulesCompleted, setModulesCompleted] = useState(0)
 
-  const [annualMember, setAnnualMember] = useState(() => loadAnnualMembershipPurchased())
+  const { hasAnnualMembership, markAnnualPurchased } = useMembershipAccess()
   const [displayName, setDisplayName] = useState('')
   const [savingName, setSavingName] = useState(false)
 
   const [emailExpanded, setEmailExpanded] = useState(false)
   const [emailDraft, setEmailDraft] = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
-
-  const [passwordExpanded, setPasswordExpanded] = useState(false)
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [savingPassword, setSavingPassword] = useState(false)
 
   const [signingOut, setSigningOut] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -125,26 +120,7 @@ export default function ProfileScreen({
     setNotice(null)
     setFormError(null)
     setEmailExpanded(false)
-    setPasswordExpanded(false)
-    setNewPassword('')
-    setConfirmPassword('')
   }, [open, user?.id, user?.email, user?.user_metadata])
-
-  useEffect(() => {
-    if (!open) return
-    const sync = () => setAnnualMember(loadAnnualMembershipPurchased())
-    sync()
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === ANNUAL_MEMBERSHIP_PURCHASED_STORAGE_KEY) sync()
-    }
-    const onLocal = () => sync()
-    window.addEventListener('storage', onStorage)
-    window.addEventListener('gatame-annual-membership-changed', onLocal)
-    return () => {
-      window.removeEventListener('storage', onStorage)
-      window.removeEventListener('gatame-annual-membership-changed', onLocal)
-    }
-  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -201,32 +177,6 @@ export default function ProfileScreen({
     }
   }
 
-  const handleSavePassword = async () => {
-    if (!supabase) return
-    if (newPassword.length < 6) {
-      setFormError('Password must be at least 6 characters.')
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setFormError('Passwords do not match.')
-      return
-    }
-    clearFeedback()
-    setSavingPassword(true)
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
-      if (error) setFormError(error.message)
-      else {
-        setNotice('Password updated.')
-        setNewPassword('')
-        setConfirmPassword('')
-        setPasswordExpanded(false)
-      }
-    } finally {
-      setSavingPassword(false)
-    }
-  }
-
   const handleSignOut = async () => {
     setSigningOut(true)
     try {
@@ -239,6 +189,11 @@ export default function ProfileScreen({
 
   const handleUpgrade = () => {
     window.open(GATAME_ANNUAL_JOIN_CHECKOUT_URL, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleOpenOffer = () => {
+    onClose()
+    openMembershipOffer()
   }
 
   const progressPercent = Math.min(
@@ -333,7 +288,7 @@ export default function ProfileScreen({
                 <p className="mt-3 text-[11px] font-medium tabular-nums tracking-wide text-white/42">
                   {modulesCompleted} / {catalogTotalSafe} Modules Completed
                 </p>
-                {!annualMember ? (
+                {!hasAnnualMembership ? (
                   <button
                     type="button"
                     onClick={handleUpgrade}
@@ -343,6 +298,35 @@ export default function ProfileScreen({
                   </button>
                 ) : null}
               </div>
+
+              <section className="mt-6 rounded-2xl border border-white/[0.08] bg-[#060b14]/80 px-5 py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/38">
+                  {en.membership.profile.heading}
+                </p>
+                <p className="mt-2 text-sm text-white/85">
+                  {hasAnnualMembership ? en.membership.profile.active : en.membership.profile.inactive}
+                </p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  {!hasAnnualMembership ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenOffer}
+                      className={`${ghostGoldCtaSubtleClass} px-5 py-2.5 text-[10px]`}
+                    >
+                      {en.membership.profile.viewPlans}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={markAnnualPurchased}
+                    className="rounded-xl px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white/70"
+                  >
+                    {en.membership.profile.markPurchased}
+                  </button>
+                </div>
+              </section>
+
+              <ProfileSyncStatus />
 
               {formError ? (
                 <p className="mt-6 rounded-lg border border-red-500/25 bg-red-950/25 px-3 py-2 text-sm text-red-200/95">
@@ -385,7 +369,6 @@ export default function ProfileScreen({
                   type="button"
                   onClick={() => {
                     setEmailExpanded((v) => !v)
-                    setPasswordExpanded(false)
                     clearFeedback()
                   }}
                   className="flex w-full items-center justify-between border-b border-transparent py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-gatame-gold/85 transition-colors hover:text-gatame-goldHi"
@@ -420,75 +403,6 @@ export default function ProfileScreen({
                           className={`${ghostGoldCtaSubtleClass} w-full py-2.5 text-[10px] sm:w-auto`}
                         >
                           Update email
-                        </button>
-                      </div>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-              </section>
-
-              <section className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPasswordExpanded((v) => !v)
-                    setEmailExpanded(false)
-                    clearFeedback()
-                  }}
-                  className="flex w-full items-center justify-between border-b border-transparent py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-gatame-gold/85 transition-colors hover:text-gatame-goldHi"
-                >
-                  <span>Password</span>
-                  <span className="text-white/35">{passwordExpanded ? '−' : '+'}</span>
-                </button>
-                <AnimatePresence initial={false}>
-                  {passwordExpanded ? (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="space-y-4 pb-2 pt-3">
-                        <div>
-                          <label className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-white/35">
-                            New password
-                          </label>
-                          <input
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => {
-                              setNewPassword(e.target.value)
-                              clearFeedback()
-                            }}
-                            className={underlineInput}
-                            autoComplete="new-password"
-                            minLength={6}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-[10px] uppercase tracking-[0.18em] text-white/35">
-                            Confirm
-                          </label>
-                          <input
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => {
-                              setConfirmPassword(e.target.value)
-                              clearFeedback()
-                            }}
-                            className={underlineInput}
-                            autoComplete="new-password"
-                            minLength={6}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          disabled={savingPassword}
-                          onClick={() => void handleSavePassword()}
-                          className={`${ghostGoldCtaSubtleClass} w-full py-2.5 text-[10px] sm:w-auto`}
-                        >
-                          Update password
                         </button>
                       </div>
                     </motion.div>

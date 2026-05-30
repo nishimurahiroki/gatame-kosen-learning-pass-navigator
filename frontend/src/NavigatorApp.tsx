@@ -1,29 +1,75 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AssessmentForm from './components/assessment/AssessmentForm'
 import AuthLoadingScreen from './components/auth/AuthLoadingScreen'
+import SyncSaveModal from './components/auth/SyncSaveModal'
 import ConfirmDialog from './components/common/ConfirmDialog'
 import PathGenerationLoadingScreen from './components/common/PathGenerationLoadingScreen'
+import SaveProgressButton from './components/common/SaveProgressButton'
+import SaveProgressRecommendCard from './components/common/SaveProgressRecommendCard'
 import { showToast } from './components/common/Toast'
 import AppBottomBar from './components/layout/AppBottomBar'
 import AppBrandLogo from './components/layout/AppBrandLogo'
+import AnnualMembershipAskModal from './components/membership/AnnualMembershipAskModal'
 import VerticalPathContainer from './components/skillmap/VerticalPathContainer'
-import { MembershipAccessProvider } from './context/MembershipAccessContext'
+import { MembershipAccessProvider, useMembershipAccess } from './context/MembershipAccessContext'
 import { useAuth } from './context/AuthContext'
-import { useSync } from './context/SyncContext'
 import { useLearningPath } from './hooks/useLearningPath'
 import en from './locales/en.json'
 import type { AssessmentRequest } from './types'
+import { getGuestStorageId } from './utils/guestDevice'
+import { bumpAppLaunchCount } from './utils/practiceCheckPersistence'
+import { tryGuestSaveProgressPrompt } from './utils/guestSaveProgressPrompt'
+import { progressSessionId } from './utils/progressStorage'
 
-/** 診断・学習パス本体（認証後に表示）。AssessmentForm 等の既存 UI はここからのみマウントする。 */
+function PathViewExtras() {
+  const { hasAnswered } = useMembershipAccess()
+  return <AnnualMembershipAskModal open={!hasAnswered} />
+}
+
 export default function NavigatorApp() {
   const { session } = useAuth()
-  const userId = session?.user?.id
-  const { status: syncStatus } = useSync()
-  const syncBannerPad = syncStatus !== 'synced' ? 'pt-11' : ''
-  const { data, error, generate, reset, cancel, lastAssessment, hydrated, loading } =
-    useLearningPath(userId)
-  const [pathGeneratedBanner, setPathGeneratedBanner] = useState(false)
+  const syncUserId = session?.user?.id
+  const guestStorageId = useMemo(() => getGuestStorageId(), [])
+  const storageId = syncUserId ?? guestStorageId
+  const isGuest = !syncUserId
+
+  useEffect(() => {
+    if (!storageId) return
+    bumpAppLaunchCount(storageId)
+  }, [storageId])
+
+  const { data, error, generate, generateNextPath, reset, cancel, lastAssessment, hydrated, loading } =
+    useLearningPath({ storageId, syncUserId })
+
   const [retakeConfirmOpen, setRetakeConfirmOpen] = useState(false)
+  const [syncModalOpen, setSyncModalOpen] = useState(false)
+  const [saveRecommendOpen, setSaveRecommendOpen] = useState(false)
+  const [saveRecommendMessage, setSaveRecommendMessage] = useState('')
+
+  const assessmentFingerprint = useMemo(
+    () => (lastAssessment ? progressSessionId(lastAssessment) : ''),
+    [lastAssessment],
+  )
+
+  const recommendSaveProgress = useCallback(
+    (trigger: 'drawer' | 'todo') => {
+      const message =
+        trigger === 'drawer' ? en.top.saveProgressPromptDrawer : en.top.saveProgressPromptTodo
+      tryGuestSaveProgressPrompt(guestStorageId, assessmentFingerprint, trigger, () => {
+        setSaveRecommendMessage(message)
+        setSaveRecommendOpen(true)
+      })
+    },
+    [guestStorageId, assessmentFingerprint],
+  )
+
+  const handleGuestEngagement = useCallback(
+    (kind: 'drawer_open' | 'todo_check') => {
+      if (!isGuest) return
+      recommendSaveProgress(kind === 'drawer_open' ? 'drawer' : 'todo')
+    },
+    [isGuest, recommendSaveProgress],
+  )
 
   const handleAssessmentSubmit = async (request: AssessmentRequest) => {
     const initial: AssessmentRequest = {
@@ -33,14 +79,11 @@ export default function NavigatorApp() {
     }
     try {
       await generate(initial)
-      setPathGeneratedBanner(true)
     } catch (err) {
       if ((err as { name?: string } | null)?.name === 'AbortError') {
-        // Cancel / Timeout: 静かにフォームへ戻り、トーストで通知。
         showToast(en.errors.pathGenerationCanceled, 'info')
         return
       }
-      // 通常のエラーは AssessmentForm の `error` 表示に任せる（throw しない）
     }
   }
 
@@ -48,35 +91,32 @@ export default function NavigatorApp() {
     cancel()
   }, [cancel])
 
-  const handlePathRefresh = useCallback(
-    async (request: AssessmentRequest) => {
-      try {
-        await generate(request, { soft: true })
-      } catch {
-        /* 取得失敗時は画面上の既存パスを維持 */
-      }
-    },
-    [generate],
-  )
-
   const requestReset = () => setRetakeConfirmOpen(true)
 
   const handleConfirmReset = () => {
     setRetakeConfirmOpen(false)
     reset()
-    setPathGeneratedBanner(false)
   }
+
+  const handleGenerateNextPath = useCallback(async () => {
+    try {
+      await generateNextPath()
+    } catch (err) {
+      if ((err as { name?: string } | null)?.name === 'AbortError') {
+        showToast(en.errors.pathGenerationCanceled, 'info')
+        return
+      }
+      const message = err instanceof Error ? err.message : en.errors.learningPathFailed
+      showToast(message, 'error')
+    }
+  }, [generateNextPath])
 
   const onPathView = Boolean(data)
 
-  /**
-   * 初回ハイドレーション中は装飾なしの AuthLoadingScreen。
-   * 学習パス生成中（loading=true && data 無し）は Cancel ボタン付きの専用画面に切り替える。
-   * soft refresh 時は data を保持してパス UI を維持する。
-   */
   if (!hydrated) {
     return <AuthLoadingScreen />
   }
+
   if (loading && !data) {
     return <PathGenerationLoadingScreen onCancel={handleCancelGeneration} />
   }
@@ -85,14 +125,14 @@ export default function NavigatorApp() {
     <MembershipAccessProvider>
       {!onPathView ? <AppBrandLogo /> : null}
       <div
-        className={`min-h-screen bg-gatame-navy px-4 ${syncBannerPad} ${onPathView ? 'pb-28 pt-4 md:pb-24' : 'pb-8 pt-10'}`}
+        className={`min-h-screen bg-gatame-navy px-4 ${onPathView ? 'pb-28 pt-4 md:pb-24' : 'pb-8 pt-10'}`}
       >
         <header
           className={`relative z-30 ${
             onPathView ? 'mb-3 flex items-center justify-center gap-2 sm:gap-3' : 'mb-10 text-center'
           }`}
         >
-          {onPathView ? <AppBrandLogo variant="inline" /> : null}
+          {onPathView ? <AppBrandLogo variant="inline" tappableToHome /> : null}
           <h1
             className={
               onPathView
@@ -109,33 +149,40 @@ export default function NavigatorApp() {
           {!data && <AssessmentForm onSubmit={handleAssessmentSubmit} error={error} />}
 
           {data && (
-            <div id="gatame-learning-path">
-              <div className="relative z-20 mx-auto mb-3 flex max-w-5xl flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <h2 className="min-w-0 text-base font-bold leading-snug sm:text-lg">
-                  <span className="text-gatame-gold">{en.app.roadmapHeading}</span>
-                  <span className="ml-2 text-sm font-semibold text-white/90 sm:text-base">
-                    ({data.totalModules} {en.app.moduleCountSuffix})
-                  </span>
-                </h2>
-                <button
-                  type="button"
-                  onClick={requestReset}
-                  className="shrink-0 text-xs font-medium text-white/75 underline underline-offset-2 hover:text-gatame-gold sm:text-sm"
-                >
-                  {en.app.retakeAssessment}
-                </button>
+            <>
+              <PathViewExtras />
+              <div id="gatame-learning-path">
+                <div className="relative z-20 mx-auto mb-3 flex max-w-5xl flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
+                    <h2 className="min-w-0 text-base font-bold leading-snug sm:text-lg">
+                      <span className="text-gatame-gold">{en.app.roadmapHeading}</span>
+                    </h2>
+                    {isGuest ? (
+                      <SaveProgressButton onClick={() => setSyncModalOpen(true)} />
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={requestReset}
+                    className="shrink-0 text-xs font-medium text-white/75 underline underline-offset-2 hover:text-gatame-gold sm:text-sm"
+                  >
+                    {en.app.retakeAssessment}
+                  </button>
+                </div>
+                <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen">
+                  <VerticalPathContainer
+                    response={data}
+                    assessmentRequest={lastAssessment}
+                    userId={syncUserId}
+                    storageId={storageId}
+                    onGuestEngagement={handleGuestEngagement}
+                    onGenerateNextPath={handleGenerateNextPath}
+                    onRequestRetake={requestReset}
+                    generatingNextPath={loading && Boolean(data)}
+                  />
+                </div>
               </div>
-              <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen">
-                <VerticalPathContainer
-                  response={data}
-                  assessmentRequest={lastAssessment}
-                  onPathRefresh={handlePathRefresh}
-                  showPathGeneratedBanner={pathGeneratedBanner}
-                  onDismissPathGeneratedBanner={() => setPathGeneratedBanner(false)}
-                  userId={userId}
-                />
-              </div>
-            </div>
+            </>
           )}
         </main>
 
@@ -156,6 +203,18 @@ export default function NavigatorApp() {
           onConfirm={handleConfirmReset}
           onCancel={() => setRetakeConfirmOpen(false)}
         />
+
+        <SaveProgressRecommendCard
+          open={saveRecommendOpen}
+          message={saveRecommendMessage}
+          onSave={() => {
+            setSaveRecommendOpen(false)
+            setSyncModalOpen(true)
+          }}
+          onDismiss={() => setSaveRecommendOpen(false)}
+        />
+
+        <SyncSaveModal open={syncModalOpen} onClose={() => setSyncModalOpen(false)} />
       </div>
     </MembershipAccessProvider>
   )

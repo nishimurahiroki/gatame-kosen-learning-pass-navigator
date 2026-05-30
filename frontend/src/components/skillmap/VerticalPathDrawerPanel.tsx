@@ -1,6 +1,7 @@
 import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { moduleCategoryLabel } from '../../api/learningPathApi'
+import { todaysTaskDrawerButtonClass } from '../../constants/brandTheme'
 import en from '../../locales/en.json'
 import type { ScoredModule } from '../../types'
 import {
@@ -24,6 +25,8 @@ export interface VerticalPathDrawerPanelProps {
   onMemoSave: (moduleId: string, memo: string) => void | Promise<void>
   onRequestCompleteFeedback: (moduleId: string) => void
   onToggleCompleteUndo: (moduleId: string) => void
+  onOpenPracticeCheck?: () => void
+  practiceCheckDisabled?: boolean
 }
 
 function useCountUpPercent(target: number) {
@@ -57,6 +60,8 @@ export default function VerticalPathDrawerPanel({
   onMemoSave,
   onRequestCompleteFeedback,
   onToggleCompleteUndo,
+  onOpenPracticeCheck,
+  practiceCheckDisabled = false,
 }: VerticalPathDrawerPanelProps) {
   const moduleId = drawerModule.id
   const total = todoItems.length
@@ -170,11 +175,11 @@ export default function VerticalPathDrawerPanel({
   )
 
   return (
-    <div
-      className={`flex h-full flex-col bg-slate-900 ${compact ? 'max-h-[min(72vh,520px)]' : 'max-h-screen'}`}
-    >
+    <div className="flex h-full min-h-0 flex-col bg-slate-900">
       <div
-        className={`overflow-y-auto px-5 pb-8 pt-2 text-slate-200 ${compact ? '' : 'pt-6'} min-h-0 flex-1`}
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 text-slate-200 ${
+          compact ? 'pt-[max(0.75rem,env(safe-area-inset-top))]' : 'pt-6'
+        }`}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -234,9 +239,22 @@ export default function VerticalPathDrawerPanel({
           ) : null}
         </div>
 
-        <div className="mt-6 border-t border-slate-700/80 pt-5">
-          <ReferenceVideoAccessPromo videoUrl={drawerModule.videoUrl ?? ''} />
-        </div>
+        {onOpenPracticeCheck ? (
+          <div className="mt-5 border-t border-slate-700/60 pt-4">
+            <button
+              type="button"
+              onClick={onOpenPracticeCheck}
+              disabled={practiceCheckDisabled}
+              className={todaysTaskDrawerButtonClass}
+              aria-label={`${en.pathDrawer.todaysTask} — ${en.pathDrawer.todaysTaskSubcopy}`}
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gatame-goldHi">
+                {en.pathDrawer.todaysTask}
+              </span>
+              <span className="text-[10px] font-medium text-gatame-gold/75">{en.pathDrawer.todaysTaskSubcopy}</span>
+            </button>
+          </div>
+        ) : null}
 
         <div className="relative mt-8 border-t border-slate-700/80 pt-5">
           <AnimatePresence>
@@ -340,6 +358,16 @@ export default function VerticalPathDrawerPanel({
             </button>
           )}
         </div>
+      </div>
+
+      <div
+        className={`shrink-0 border-t border-slate-700/80 bg-slate-900 px-5 pt-3 ${
+          compact
+            ? 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+            : 'pb-[max(1rem,env(safe-area-inset-bottom))]'
+        }`}
+      >
+        <ReferenceVideoAccessPromo videoUrl={drawerModule.videoUrl ?? ''} />
       </div>
     </div>
   )

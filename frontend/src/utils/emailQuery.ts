@@ -30,6 +30,21 @@ export function readEmailFromQuery(): string | null {
   return null
 }
 
+/** URL に Kajabi の未展開タグ（`{{member.email}}` 等）が残っているか */
+export function readUnexpandedKajabiEmailTemplate(): string | null {
+  if (typeof window === 'undefined') return null
+  const params = new URLSearchParams(window.location.search)
+  for (const key of EMAIL_QUERY_KEYS) {
+    const raw = params.get(key)
+    if (!raw) continue
+    const normalized = normalizeEmailParam(raw)
+    if (normalized.includes('{{') || normalized.includes('}}')) {
+      return normalized
+    }
+  }
+  return null
+}
+
 /** 読み取り後にメール系クエリを URL から除去 */
 export function stripEmailQueryParam(): void {
   if (typeof window === 'undefined') return

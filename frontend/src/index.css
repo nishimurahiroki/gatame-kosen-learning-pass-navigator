@@ -9,38 +9,11 @@ body {
   @apply bg-gatame-midnight text-white font-sans;
 }
 
-@keyframes technique-node-glow-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.95;
-  }
+.path-node-active-ring {
+  animation: path-node-active-pulse 2.2s ease-in-out infinite;
 }
 
-.technique-node-glow {
-  animation: technique-node-glow-pulse 2.4s ease-in-out infinite;
-}
-
-/** 垂直学習街道 · 畳イメージの薄ドット */
-.bg-learning-street {
-  background-color: rgba(10, 22, 40, 0.92);
-  background-image:
-    radial-gradient(rgba(201, 168, 76, 0.07) 1px, transparent 1px),
-    linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.02) 0%,
-      transparent 20%,
-      transparent 80%,
-      rgba(255, 255, 255, 0.02) 100%
-    );
-  background-size:
-    16px 16px,
-    100% 100%;
-}
-
-@keyframes learning-street-active-pulse {
+@keyframes path-node-active-pulse {
   0%,
   100% {
     box-shadow:
@@ -54,14 +27,6 @@ body {
       0 0 36px rgba(201, 168, 76, 0.35);
     transform: scale(1.06);
   }
-}
-
-.learning-street-node-active {
-  animation: learning-street-active-pulse 2.2s ease-in-out infinite;
-}
-
-.path-node-active-ring {
-  animation: learning-street-active-pulse 2.2s ease-in-out infinite;
 }
 
 .path-trail-edge-cleared path {
@@ -81,7 +46,7 @@ body {
 }
 
 .path-parallax-layer {
-  /* fixed だとビューポート全体を覆い、SkillMap 直上の roadmap 見出しに重なる */
+  /* 学習パスボード内のパララックス装飾 */
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -95,6 +60,25 @@ body {
   background-size: 22px 22px;
 }
 
+/** PC すごろくボード: 畳目を横方向にも薄く入れる */
+.path-board-sugoroku .path-parallax-tatami {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 120px,
+      rgba(255, 255, 255, 0.02) 120px,
+      rgba(255, 255, 255, 0.02) 122px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 52px,
+      rgba(255, 255, 255, 0.025) 52px,
+      rgba(255, 255, 255, 0.025) 54px
+    );
+}
+
 .path-parallax-tatami {
   background-image: repeating-linear-gradient(
     0deg,
@@ -104,4 +88,128 @@ body {
     rgba(255, 255, 255, 0.025) 54px
   );
   opacity: 0.65;
+}
+
+/* Black Belt System · プレミアムパスノード（通常モジュールより格上げ） */
+@keyframes bbs-premium-cta-shine {
+  0% {
+    background-position: 180% center;
+  }
+  100% {
+    background-position: -80% center;
+  }
+}
+
+.bbs-path-premium-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1rem 0.85rem 0.9rem;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(212, 175, 55, 0.18), transparent 55%),
+    linear-gradient(165deg, rgba(26, 22, 14, 0.95) 0%, rgba(8, 14, 28, 0.98) 48%, rgba(5, 10, 20, 1) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.42);
+  box-shadow:
+    0 0 48px rgba(197, 160, 89, 0.22),
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 236, 200, 0.12);
+}
+
+.bbs-path-premium-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 236, 200, 0.35) 0%,
+    rgba(212, 175, 55, 0.15) 35%,
+    transparent 55%,
+    rgba(212, 175, 55, 0.25) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.bbs-path-premium-card--locked {
+  border-color: rgba(148, 163, 184, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0.55;
+}
+
+.bbs-path-premium-card--locked::before {
+  opacity: 0.35;
+}
+
+.bbs-path-premium-disc {
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
+  background: rgba(5, 10, 20, 0.2);
+  border: 2px solid rgba(212, 175, 55, 0.82);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    inset 0 0 12px rgba(0, 0, 0, 0.15);
+}
+
+.bbs-path-premium-disc--locked {
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.bbs-path-premium-title {
+  background: linear-gradient(180deg, #faf3e0 0%, #e8d5a3 35%, #d4af37 70%, #b8944f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 24px rgba(212, 175, 55, 0.25);
+}
+
+.bbs-path-premium-cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f2e6c8 0%, #d4af37 38%, #a8843f 100%);
+  color: #0a1128;
+  box-shadow:
+    0 4px 22px rgba(197, 160, 89, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.bbs-path-premium-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 45%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: bbs-premium-cta-shine 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.bbs-path-premium-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow:
+    0 6px 28px rgba(197, 160, 89, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.bbs-path-premium-cta:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
 }

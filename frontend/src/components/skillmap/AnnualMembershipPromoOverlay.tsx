@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
+import { GATAME_ANNUAL_JOIN_CHECKOUT_URL } from '../../constants/kajabiCheckout'
 import { ghostGoldCtaClass, ghostGoldCtaSubtleClass } from '../../constants/brandTheme'
-import { openMembershipUnlockMenu } from '../../utils/membershipUnlockMenuEvent'
 import ConfirmDialog from '../common/ConfirmDialog'
 import en from '../../locales/en.json'
 
@@ -21,10 +21,8 @@ export default function AnnualMembershipPromoOverlay({
   onMarkAnnualPurchased,
 }: AnnualMembershipPromoOverlayProps) {
   const handlePrimary = () => {
+    window.open(GATAME_ANNUAL_JOIN_CHECKOUT_URL, '_blank', 'noopener,noreferrer')
     onClose()
-    queueMicrotask(() => {
-      openMembershipUnlockMenu({ elevated: true })
-    })
   }
 
   const handleDismiss = () => {
@@ -111,9 +109,9 @@ export default function AnnualMembershipPromoOverlay({
               <button
                 type="button"
                 onClick={handlePrimary}
-                className={`${ghostGoldCtaClass} w-full py-4 text-sm sm:flex-1`}
+                className={`${ghostGoldCtaClass} w-full py-4 text-sm`}
               >
-                Unlock Videos
+                {en.membership.offer.viewPlansCta}
               </button>
               <button
                 type="button"

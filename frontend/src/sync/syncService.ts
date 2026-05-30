@@ -17,6 +17,7 @@ import {
   outboxCount,
   removeOutboxKey,
 } from './syncOutbox'
+import { SYNC_FLUSH_DEBOUNCE_MS } from './syncConstants'
 import { GATAME_SYNC_CHANGED_EVENT, type SyncOp } from './syncTypes'
 
 export function isBrowserOnline(): boolean {
@@ -53,6 +54,41 @@ export interface FlushSyncResult {
 
 let flushInFlight: Promise<FlushSyncResult> | null = null
 let flushUserId: string | null = null
+
+const flushDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function cancelScheduledFlush(userId: string): void {
+  const timer = flushDebounceTimers.get(userId)
+  if (timer) {
+    clearTimeout(timer)
+    flushDebounceTimers.delete(userId)
+  }
+}
+
+function cancelAllScheduledFlushes(): void {
+  for (const timer of flushDebounceTimers.values()) {
+    clearTimeout(timer)
+  }
+  flushDebounceTimers.clear()
+}
+
+/** タブ終了・非表示時: debounce 待ちをキャンセルして即 flush */
+function flushPendingScheduledOnPageHide(): void {
+  const userIds = [...flushDebounceTimers.keys()]
+  cancelAllScheduledFlushes()
+  for (const userId of userIds) {
+    void flushSyncQueue(userId)
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushPendingScheduledOnPageHide)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingScheduledOnPageHide()
+    }
+  })
+}
 
 /**
  * アウトボックス内の未送信操作を順に Supabase へ送る。
@@ -140,7 +176,20 @@ export function flushSyncQueue(userId: string): Promise<FlushSyncResult> {
 }
 
 function scheduleFlush(userId: string): void {
-  void flushSyncQueue(userId)
+  cancelScheduledFlush(userId)
+  flushDebounceTimers.set(
+    userId,
+    setTimeout(() => {
+      flushDebounceTimers.delete(userId)
+      void flushSyncQueue(userId)
+    }, SYNC_FLUSH_DEBOUNCE_MS),
+  )
+}
+
+/** debounce を飛ばして即時 flush（再試行・起動時・タブ離脱前） */
+export function flushSyncQueueImmediate(userId: string): Promise<FlushSyncResult> {
+  cancelScheduledFlush(userId)
+  return flushSyncQueue(userId)
 }
 
 // --------------------------------------------------------------------------

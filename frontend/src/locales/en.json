@@ -1,8 +1,28 @@
 {
+  "top": {
+    "subtitle": "Your personalized path through Gatame Kosen Online",
+    "ctaStartAssessment": "Start assessment",
+    "ctaResumeLocal": "Resume your last path",
+    "ctaResumeMember": "Continue where you left off",
+    "ctaSignInToContinue": "Sign in to continue",
+    "returningUserHint": "Already saved your progress? Sign in with the same email — even after clearing browser data or on another device.",
+    "crossDeviceHeading": "Used this app before?",
+    "crossDeviceBody": "Sign in with the email you used when you saved progress. Your path restores from the cloud.",
+    "crossDeviceCta": "Sign in to restore",
+    "signedInHint": "You are signed in. Cloud sync is active on this device.",
+    "syncBannerTitle": "Save your progress",
+    "syncBannerBody": "Sign in to save your path and progress to the cloud — continue on any device after email verification.",
+    "syncBannerCta": "Save progress",
+    "saveProgressPromptTitle": "Keep your path safe",
+    "saveProgressPromptNotNow": "Not now",
+    "saveProgressPromptDrawer": "Your path and progress are only on this device until you sign in. Save to the cloud to continue on any device.",
+    "saveProgressPromptTodo": "Great start on your checklist. Sign in to save your progress so you will not lose it."
+  },
   "app": {
     "title": "Learning Path Navigator",
     "subtitle": "Gatame Kosen Online — Personalized learning system",
     "roadmapHeading": "Your learning roadmap",
+    "roadmapPathSummary": "4 modules + certification",
     "moduleCountSuffix": "modules",
     "retakeAssessment": "← Retake assessment"
   },
@@ -37,12 +57,43 @@
     "assessmentIncomplete": "Assessment data is incomplete.",
     "feedbackSendFailed": "Failed to send feedback.",
     "imageExportFailed": "Could not export the image. Try taking a screenshot instead.",
-    "pathGenerationCanceled": "Path generation canceled. You can try again anytime."
+    "pathGenerationCanceled": "Path generation canceled. You can try again anytime.",
+    "noModulesRemaining": "You have completed every module available for this assessment. Retake the assessment if your goals have changed."
   },
   "toast": {
     "feedbackSaveFailed": "Could not save your feedback. Completion is recorded locally.",
     "todoSaveFailed": "Could not save the checklist update. Check your connection.",
     "memoSaveFailed": "Could not save your notes. Check your connection."
+  },
+  "syncSave": {
+    "title": "Save your progress",
+    "description": "Sign in to save your path and progress to the cloud — continue on any device after verification.",
+    "successMessage": "We sent a sign-in link to your email. Open it to continue.",
+    "emailLabel": "Email address",
+    "emailRequired": "Please enter your email address.",
+    "sending": "Sending…",
+    "cooldown": "Try again in {n}s",
+    "cooldownError": "Please wait before trying again ({n}s).",
+    "sendMagicLink": "Email me a sign-in link",
+    "googleSignIn": "Continue with Google",
+    "orDivider": "or",
+    "close": "Close"
+  },
+  "access": {
+    "title": "Restore on this device",
+    "subtitle": "Sign in with the email you used when you saved progress. Your path and progress will load from the cloud.",
+    "checking": "Checking connection…",
+    "emailLabel": "Email address",
+    "emailRequired": "Please enter your email address.",
+    "sendFailed": "Could not send. Please try again.",
+    "sending": "Sending…",
+    "sendMagicLink": "Email me a sign-in link",
+    "googleSignIn": "Continue with Google",
+    "orDivider": "or",
+    "successMessage": "We sent a sign-in link to your email. Please check your inbox.",
+    "prefilledHint": "We filled in your member email. Request a sign-in link and open it in your email.",
+    "defaultHint": "Enter the email you used to save progress. Your path appears after you open the link in your email.",
+    "kajabiWarning": "The email from your Kajabi link was not expanded (URL still shows {token}). Type your email manually or fix the Kajabi link to use a personalized Email field."
   },
   "auth": {
     "signUpEmailSent": {
@@ -70,6 +121,20 @@
       "pending": "Some changes are not saved to the cloud yet",
       "error": "Could not save progress to the cloud",
       "offline": "You are offline — progress will sync when you are back online"
+    },
+    "profile": {
+      "heading": "Cloud sync",
+      "synced": "All changes saved to the cloud",
+      "pending": "Changes waiting to upload",
+      "syncing": "Saving to the cloud…",
+      "error": "Could not save to the cloud",
+      "offline": "Offline — progress is stored on this device",
+      "lastSavedJustNow": "Last saved just now",
+      "lastSavedMinutes": "Last saved {n} min ago",
+      "lastSavedHours": "Last saved {n} h ago",
+      "pendingItems": "{n} unsaved change(s)",
+      "syncNow": "Sync now",
+      "discardUnsaved": "Discard unsaved changes"
     }
   },
   "api": {
@@ -80,7 +145,8 @@
     "badRequest": "The server could not accept the request (400).",
     "requestRejected": "The server rejected the request payload (400).",
     "requestCanceled": "Request canceled.",
-    "requestTimedOut": "Generating your path is taking longer than expected. Please try again."
+    "requestTimedOut": "Generating your path is taking longer than expected. Please try again.",
+    "corsForbidden": "API access was blocked (403). For local dev: run `npm run dev:api` in one terminal and `npm run dev` in another, then open http://localhost:5173. See LOCAL_DEVELOPMENT.md."
   },
   "moduleCategories": {
     "ukemi": "Basics · Ukemi",
@@ -112,7 +178,31 @@
     "supporting": "Supporting route"
   },
   "verticalPath": {
-    "noPath": "No shortest path can be displayed."
+    "noPath": "No personalized path can be displayed."
+  },
+  "pathStageComplete": {
+    "badge": "Stage complete",
+    "title": "Ready for your next challenge?",
+    "description": "You finished all 4 modules on this path. Generate your next set of modules from what is still left in your curriculum.",
+    "descriptionExhausted": "You have completed every module matched to this assessment. Retake the assessment if your goals or focus areas have changed.",
+    "generateNext": "Generate next path",
+    "generating": "Generating…",
+    "retakeAssessment": "Retake assessment",
+    "notNow": "Not now",
+    "bannerHint": "Stage complete — keep going with your next 4 modules."
+  },
+  "bbsGate": {
+    "pathTitle": "Black Belt System",
+    "lockedHint": "Available on your learning path.",
+    "viewOffer": "View plans",
+    "unlockedBanner": "Black Belt System is available anytime on your path.",
+    "offerIntro": "Expert feedback and formal rank certification.",
+    "purchaseHeading": "Plans",
+    "monthlyTitle": "Monthly",
+    "monthlyCta": "Monthly plan",
+    "oneTimeTitle": "One-time",
+    "oneTimeCta": "One-time plan",
+    "checkoutUnavailable": "Checkout is not available for this level yet."
   },
   "moduleHints": {
     "problemMatch": "This module aligns strongly with the challenges you picked. Picture real match moments and drill with intent.",
@@ -130,13 +220,42 @@
     "finishTodosInPanel": "Finish checklist in panel",
     "markCompleted": "Mark as Completed"
   },
+  "todaysFocus": {
+    "label": "Today's focus",
+    "subcopy": "Focus on this technique when you practice next.",
+    "itWorked": "It worked",
+    "notWorking": "Not working",
+    "notNow": "Not now",
+    "openInDrawerAction": "Tap to open",
+    "stuckHeadline": "Stuck on this technique?",
+    "bbsFeedbackSubLead": "Black Belt System offers ",
+    "bbsFeedbackSubEmphasis": "video feedback",
+    "bbsFeedbackSubTail": " from certified black belts.",
+    "getBlackBeltSystemCta": "Get Black Belt System",
+    "back": "Back",
+    "close": "Close",
+    "markedComplete": "Great work. Technique marked complete.",
+    "undo": "Undo",
+    "notWorkingEduMessages": [
+      "The form can look right on video, but in randori it often breaks at distance, kuzushi, and head position.",
+      "When the same technique keeps failing, fix force direction and timing before speed — in Kosen Judo and BJJ alike.",
+      "That \"not working\" feeling is useful data. Slow down and check whether kuzushi, timing, or the finish broke first."
+    ]
+  },
   "pathDrawer": {
     "progress": "Progress",
     "practiceChecklist": "Practice checklist (technique focus)",
     "showMore": "Show more (+{n} remaining)",
     "referenceVideo": "Reference video",
     "unlockFullAccessCta": "Unlock Full Access (+150 Techniques)",
+    "unlockFullAccessSubcopy": "Tap to unlock",
     "watchVideoLoginCta": "Watch Video (Login)",
+    "watchVideoCta": "Watch Video",
+    "watchVideoSubcopy": "Tap to open",
+    "getMembershipCta": "Get Membership",
+    "getMembershipSubcopy": "View Annual plans",
+    "todaysTask": "Today's Task",
+    "todaysTaskSubcopy": "Tap to open",
     "recordInsights": "Record your insights!!",
     "moduleMemoLabel": "Module notes",
     "memoPlaceholder": "Note down the points you noticed or tips from your sensei.",
@@ -149,6 +268,36 @@
     "allTodosForComplete": "Check every item in the checklist to enable \"Mark as Completed\".",
     "undoCompletion": "Undo completion",
     "markStepCompleted": "Mark as Completed"
+  },
+  "membership": {
+    "offer": {
+      "badge": "Annual Membership",
+      "title": "Unlock the full technique video library",
+      "subcopy": "Start with a 14-day free trial on Gatame Kosen Online.",
+      "viewPlansCta": "View plans",
+      "alreadyPurchasedCta": "I already have Annual Membership",
+      "benefits": [
+        {
+          "title": "150+ technique videos",
+          "body": "One-minute lessons focused on Kosen Judo groundwork."
+        },
+        {
+          "title": "Black Belt System savings",
+          "body": "Member promo codes for Kyukyu and Sankyu certification."
+        },
+        {
+          "title": "Train anywhere",
+          "body": "Unlimited streaming for one year on any device."
+        }
+      ]
+    },
+    "profile": {
+      "heading": "Annual Membership",
+      "active": "Active — video library access",
+      "inactive": "Not subscribed",
+      "viewPlans": "View membership plans",
+      "markPurchased": "I purchased Annual Membership"
+    }
   },
   "feedback": {
     "title": "Step completion feedback",
@@ -171,18 +320,31 @@
     "heroTitle": "Let's build your path",
     "questionProgress": "Question {current} / {total}",
     "chooseOneHint": "Choose one option below.",
-    "q1Title": "Q1. Which best describes you right now?",
-    "q2InterestTitle": "Q2. Where do you want to put more emphasis in training?",
-    "q3PainsTitle": "Which technical challenge would you like to solve?",
-    "q3PainsHint": "Select your current struggles to customize your roadmap. You can pick multiple—or skip this step.",
-    "q2AltTitle": "What's your ideal fighting style?",
-    "q2AltHint": "There are no wrong answers—go with what resonates.",
-    "q5Title": "Define your ultimate goal for this path.",
+    "q1Title": "Q1. Which profile fits you best today?",
+    "q2PainsTitle": "Q2. What technical challenges do you want to solve?",
+    "q2PainsHint": "Select any that apply—or skip this step if you prefer a broad path.",
+    "q2AltTitle": "Q2. What fighting style do you aspire to?",
+    "q2AltHint": "Select all styles that resonate with you.",
+    "q3GoalTitle": "Q3. What is your ultimate goal for this path?",
+    "q4AnnualTitle": "Q4. Do you have an active Annual Membership?",
+    "q4AnnualHint": "Includes access to the +150 technique video library on Gatame Kosen Online.",
+    "annualMembershipChoices": [
+      {
+        "id": "yes",
+        "title": "Yes, I have Annual Membership",
+        "description": "I can access the video library on Gatame Kosen Online."
+      },
+      {
+        "id": "no",
+        "title": "Not yet",
+        "description": "Show me membership options when I want to watch videos."
+      }
+    ],
     "back": "← Back",
     "next": "Next",
     "finishGenerate": "Generate My Path",
-    "loadingTitle": "Generating your best path…",
-    "loadingSubtitle": "Scoring modules from your answers.",
+    "loadingTitle": "Generating your personalized path…",
+    "loadingSubtitle": "Selecting modules from your answers.",
     "segments": [
       {
         "segment": "NOVICE",
@@ -275,31 +437,27 @@
   "painPoints": {
     "standing-flow-to-submission": {
       "headline": "Throw to Submission",
-      "scenario": "I can't finish the fight on the ground immediately after a throw."
+      "scenario": "I can't finish on the ground immediately after a throw."
     },
     "pin-after-throw": {
       "headline": "Pin Escapes",
-      "scenario": "Opponents always escape before I can solidify the Osaekomi."
+      "scenario": "Opponents escape before I can establish a solid pin."
     },
     "turtle-breakdown": {
       "headline": "Flipping the Turtle",
-      "scenario": "I can't flip or breakdown a turtle opponent into a pin."
+      "scenario": "I can't break down or flip a turtle opponent."
     },
-    "guard-pass-from-top": {
-      "headline": "Guard Pass Struggles",
-      "scenario": "I can't pass their guard. I want to break their defense."
+    "submission-arts-mastery": {
+      "headline": "Submission Arts Mastery",
+      "scenario": "I want to develop my submission techniques."
     },
-    "guard-bottom-sweep-submit": {
-      "headline": "Guard Defense & Sweeps",
-      "scenario": "I don't want to be passed. I want to keep my guard and sweep them."
+    "guard-pass-defense": {
+      "headline": "Guard Pass & Defense",
+      "scenario": "I want to retain my guard and hit sweeps."
     },
     "grip-fight": {
       "headline": "Gripping Battles",
-      "scenario": "I lose the gripping fight and can't start my own techniques."
-    },
-    "escape-osaekomi": {
-      "headline": "Drained by Pins",
-      "scenario": "I waste all my energy trying to escape from the bottom."
+      "scenario": "I lose the gripping exchange and can't start my attacks."
     }
   },
   "difficulty": {

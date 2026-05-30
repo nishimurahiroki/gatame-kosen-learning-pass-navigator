@@ -77,7 +77,7 @@ export function bbsLevelShowsMonthlyPlanPurchaserReminder(level: BbsLevelKey): b
 }
 
 /**
- * 診断直後バナー用のチェックアウト級（バックエンド {@code recommendedBbsGrade} と同期）。
+ * BBS チェックアウト級（バックエンド {@code recommendedBbsGrade} と同期）。
  * 未対応の表記のときは userAttribute に合わせ九級相当 / 三級相当へフォールバックする。
  */
 export function resolveBbsCheckoutLevelForEntryBanner(
@@ -88,17 +88,4 @@ export function resolveBbsCheckoutLevelForEntryBanner(
   if (g === '九級') return 'Kyukyu'
   if (g === '三級') return 'Sankyu'
   return userAttribute === '未経験' ? 'Kyukyu' : 'Sankyu'
-}
-
-/** バナー用 One-time URL（空なら null） */
-export function bbsCheckoutUrlOneTimeOrNull(level: BbsLevelKey): string | null {
-  const u = (BBS_ONE_TIME_CHECKOUT_URL[level] ?? '').trim()
-  return u.length > 0 ? u : null
-}
-
-/** バナー用 Monthly URL（Kyukyu/Sankyu のみ。空なら null） */
-export function bbsCheckoutUrlMonthlyOrNull(level: BbsLevelKey): string | null {
-  if (!bbsLevelShowsMonthlyPlan(level)) return null
-  const u = (BBS_MONTHLY_CHECKOUT_URL[level] ?? '').trim()
-  return u.length > 0 ? u : null
 }

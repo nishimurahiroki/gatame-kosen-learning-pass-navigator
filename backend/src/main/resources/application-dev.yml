@@ -1,0 +1,4 @@
+# ローカル開発専用（spring.profiles.active=dev）。Render / Docker 本番では読み込まれない。
+gatame:
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173

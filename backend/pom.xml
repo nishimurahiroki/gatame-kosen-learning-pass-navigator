@@ -61,6 +61,10 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <!-- mvn spring-boot:run のみ dev。java -jar（Docker/Render）では未使用 -->
+                    <profiles>
+                        <profile>dev</profile>
+                    </profiles>
                 </configuration>
             </plugin>
         </plugins>
