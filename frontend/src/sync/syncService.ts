@@ -192,6 +192,19 @@ export function flushSyncQueueImmediate(userId: string): Promise<FlushSyncResult
   return flushSyncQueue(userId)
 }
 
+/** スケジュール済み debounce flush をキャンセル（明示的メモ保存の直前など） */
+export function cancelScheduledSyncFlush(userId: string): void {
+  cancelScheduledFlush(userId)
+}
+
+/** 進行中の flush があれば完了を待つ（キュー全体は走らせない） */
+export function waitForSyncFlush(userId: string): Promise<void> {
+  if (flushInFlight && flushUserId === userId) {
+    return flushInFlight.then(() => undefined)
+  }
+  return Promise.resolve()
+}
+
 // --------------------------------------------------------------------------
 // 公開 API（全操作は enqueue → 即時 flush）
 // --------------------------------------------------------------------------

@@ -30,6 +30,14 @@ function normalize(value: string): string {
     .replace(/[^a-z0-9]+/g, '')
 }
 
+/** "日本語 (English)" → "English" — 学習前後カードでは括弧内のみ表示 */
+export function focusPointDisplayEnglish(raw: string): string {
+  const trimmed = raw.trim()
+  const match = trimmed.match(/\(([^)]+)\)\s*$/)
+  if (match?.[1]) return match[1].trim()
+  return trimmed
+}
+
 function resolveModuleId(sectionHeading: string): string | null {
   const hit = SECTION_TO_MODULE_ID.find(({ section }) => sectionHeading.includes(section))
   return hit?.moduleId ?? null
@@ -78,7 +86,7 @@ function parseFocusPointsMarkdown(markdown: string): Map<string, Map<string, Foc
 
     if (/^\d+\.\s+/.test(line) && currentTechniqueTitle) {
       const point = line.replace(/^\d+\.\s+/, '').trim()
-      if (point.length > 0) currentPoints.push(point)
+      if (point.length > 0) currentPoints.push(focusPointDisplayEnglish(point))
     }
   }
 

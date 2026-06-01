@@ -160,6 +160,49 @@ export async function saveRemoteModuleProgress(
 export interface RemoteModuleDetail {
   checkedItems: Record<string, boolean>
   memo: string
+  /** Supabase `updated_at`（マージ時の新旧判定用） */
+  updatedAt?: string
+}
+
+export interface RemoteModuleMemoEntry {
+  moduleId: string
+  memo: string
+  checkedItems: Record<string, boolean>
+  updatedAt: string
+}
+
+export async function loadRemoteSessionMemoEntries(
+  userId: string,
+  sessionKey: string,
+): Promise<RemoteModuleMemoEntry[]> {
+  const client = getClient()
+  if (!client || !userId || !sessionKey) return []
+  try {
+    const { data, error } = await client
+      .from('user_module_details')
+      .select('module_id, checked_items, memo, updated_at')
+      .eq('user_id', userId)
+      .eq('session_key', sessionKey)
+      .neq('memo', '')
+      .order('updated_at', { ascending: false })
+
+    if (error || !data) return []
+
+    const entries: RemoteModuleMemoEntry[] = []
+    for (const row of data) {
+      const memo = String(row.memo ?? '').trim()
+      if (!memo) continue
+      entries.push({
+        moduleId: row.module_id as string,
+        memo,
+        checkedItems: (row.checked_items as Record<string, boolean>) ?? {},
+        updatedAt: (row.updated_at as string) ?? new Date(0).toISOString(),
+      })
+    }
+    return entries
+  } catch {
+    return []
+  }
 }
 
 export async function loadRemoteSessionDetails(
@@ -171,7 +214,7 @@ export async function loadRemoteSessionDetails(
   try {
     const { data, error } = await client
       .from('user_module_details')
-      .select('module_id, checked_items, memo')
+      .select('module_id, checked_items, memo, updated_at')
       .eq('user_id', userId)
       .eq('session_key', sessionKey)
 
@@ -182,6 +225,7 @@ export async function loadRemoteSessionDetails(
       result[row.module_id as string] = {
         checkedItems: (row.checked_items as Record<string, boolean>) ?? {},
         memo: (row.memo as string) ?? '',
+        updatedAt: (row.updated_at as string) ?? undefined,
       }
     }
     return result
@@ -249,4 +293,4 @@ export async function saveRemoteModuleFeedback(
     return { ok: false, message: e instanceof Error ? e.message : 'Network error' }
   }
 }
-
+

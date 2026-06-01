@@ -84,7 +84,18 @@ export default function VerticalPathDrawerPanel({
   useEffect(() => {
     setMemoLocal(memoText)
     savedMemoRef.current = memoText
-  }, [memoText, moduleId])
+  }, [moduleId])
+
+  useEffect(() => {
+    if (memoLocal !== savedMemoRef.current) {
+      return
+    }
+    if (memoText === memoLocal) {
+      return
+    }
+    setMemoLocal(memoText)
+    savedMemoRef.current = memoText
+  }, [memoText, memoLocal])
 
   useEffect(() => {
     if (prevCheckedRef.current === null) {
@@ -126,25 +137,11 @@ export default function VerticalPathDrawerPanel({
       savedMemoRef.current = memoLocal
       setMemoSavedAt(Date.now())
     } catch {
-      /* 失敗時は memoSavedAt を更新せず、Unsaved 表示を維持。トーストは onMemoSave 側で発火済み */
+      /* 失敗時は Unsaved 表示を維持。トーストは onMemoSave 側 */
     } finally {
       setSavingMemo(false)
     }
   }, [memoLocal, moduleId, onMemoSave])
-
-  const handleMemoBlur = useCallback(() => {
-    void flushMemo()
-  }, [flushMemo])
-
-  /** Drawer のアンマウント／moduleId 切替時に未保存メモを flush（フォーカスを当てたまま閉じる事故対策） */
-  useEffect(() => {
-    return () => {
-      if (memoLocal !== savedMemoRef.current) {
-        void onMemoSave(moduleId, memoLocal)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moduleId])
 
   const memoDirty = memoLocal !== savedMemoRef.current
 
@@ -304,7 +301,6 @@ export default function VerticalPathDrawerPanel({
             rows={compact ? 5 : 7}
             value={memoLocal}
             onChange={(e) => setMemoLocal(e.target.value)}
-            onBlur={handleMemoBlur}
             placeholder={en.pathDrawer.memoPlaceholder}
             className="mt-2 w-full resize-y rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-yellow-600 focus:outline-none focus:ring-1 focus:ring-yellow-600/40"
           />
@@ -312,6 +308,7 @@ export default function VerticalPathDrawerPanel({
             <button
               type="button"
               disabled={!memoDirty || savingMemo}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => void flushMemo()}
               className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors ${
                 memoDirty && !savingMemo

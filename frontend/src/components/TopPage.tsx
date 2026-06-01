@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import topPageBgSrc from '@image/TopPage-image.webp'
 import { GATAME_LOGO_SRC } from '../constants/brandAssets'
+import {
+  TOP_PAGE_LP_FEATURE_IMAGES,
+  TOP_PAGE_LP_MEMBERSHIP_IMAGE,
+} from '../constants/topPageLpImages'
 import { GATAME_ANNUAL_JOIN_CHECKOUT_URL } from '../constants/kajabiCheckout'
 import { useAuth } from '../context/AuthContext'
 import { loadRemoteLearningPath } from '../api/supabaseProgressApi'
@@ -16,12 +20,13 @@ type PrimaryCta = 'start' | 'resumeLocal' | 'resumeMember'
 /** ヒーロー（1画面分）のみに適用。ページ全体に bg-cover すると LP 分の高さまで拡大され画像が判別不能になる */
 const topPageHeroBgClass = 'bg-gatame-midnight bg-cover bg-center bg-no-repeat'
 
-/** 背景画像の上でも読めるよう TopPage 専用のコントラスト */
+/** 背景写真の上にだけかかる暗幕。薄くする場合はここだけ編集（/0〜100。下げるほど写真が見える） */
 const topPageBgOverlayClass =
-  'pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050a14]/88 via-[#0a1128]/82 to-[#050a14]/95'
+  'pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050a14]/5 via-[#0a1128]/5 to-[#050a14]/15'
 
+/** 中央カードの見た目（背景オーバーレイとは別） */
 const topPageContentPanelClass =
-  'rounded-3xl border border-white/15 bg-[#0a1128]/88 px-6 py-8 shadow-[0_24px_64px_rgba(0,0,0,0.65)] backdrop-blur-md sm:px-8'
+  'rounded-3xl border border-white/15 bg-[#050a14]/94 px-6 py-8 shadow-[0_24px_64px_rgba(0,0,0,0.72)] backdrop-blur-md sm:px-8'
 
 const topPagePrimaryCtaClass =
   'rounded-2xl border-2 border-gatame-gold bg-gatame-gold/20 px-5 py-3.5 text-center text-xs font-bold uppercase tracking-[0.16em] text-gatame-goldHi shadow-[0_0_24px_rgba(197,160,89,0.32)] transition-[color,background-color,border-color,transform,box-shadow] hover:border-gatame-goldHi hover:bg-gatame-gold/30 hover:shadow-[0_0_32px_rgba(197,160,89,0.42)] active:scale-[0.99]'
@@ -29,8 +34,39 @@ const topPagePrimaryCtaClass =
 const topPageSecondaryCtaClass =
   'rounded-2xl border border-gatame-gold/80 bg-black/45 px-5 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] text-gatame-gold transition-[color,background-color,border-color,box-shadow] hover:border-gatame-goldHi hover:bg-black/55 hover:text-gatame-goldHi hover:shadow-[0_0_16px_rgba(197,160,89,0.22)]'
 
-const topPageSectionCardClass =
-  'rounded-3xl border border-white/15 bg-[#0a1128]/84 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.52)] backdrop-blur-sm sm:p-8'
+/** LP 機能行: 行幅を抑えた均等2列（1fr+固定px だと PC でテキストと画像が離れすぎる） */
+const topPageLpFeatureRowClass =
+  'mx-auto grid w-full max-w-5xl grid-cols-1 items-center gap-9 border-b border-white/10 py-10 last:border-b-0 md:grid-cols-2 md:gap-x-5 md:py-12 lg:max-w-6xl lg:gap-x-6'
+
+function LpBulletList({ items }: { items: string[] }) {
+  return (
+    <ul className="mt-4 space-y-2.5 text-sm leading-relaxed text-white/80">
+      {items.map((item) => (
+        <li key={item} className="flex gap-2.5">
+          <span className="mt-0.5 shrink-0 text-gatame-gold" aria-hidden>
+            •
+          </span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function LpSectionPhoneImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="flex justify-center px-1 sm:px-2">
+      <img
+        src={src}
+        alt={alt}
+        className="h-auto w-full max-h-[min(720px,74vh)] max-w-[min(100%,380px)] object-contain object-center sm:max-w-[420px] md:max-w-[460px] lg:max-w-[520px]"
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+      />
+    </div>
+  )
+}
 
 export default function TopPage() {
   const { session, loading: authLoading } = useAuth()
@@ -185,75 +221,67 @@ export default function TopPage() {
         </div>
       </section>
 
-      <section className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-14 pt-10">
-        <div className="mb-8 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-gatame-gold">{en.top.lpBadge}</p>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-4xl">
+      <section className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
+        <div className="mb-6 text-center md:mb-8">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gatame-gold">{en.top.lpBadge}</p>
+          <h2 className="mt-2 text-xl font-black tracking-tight text-white sm:text-3xl">
             {en.top.lpHeading}
           </h2>
-          <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-white/80 sm:text-base">
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-white/75">
             {en.top.lpSubheading}
           </p>
-          <button
-            type="button"
-            onClick={handleStartAssessment}
-            className={`${topPagePrimaryCtaClass} mt-6 w-full max-w-md`}
-          >
-            {en.top.ctaStartAssessmentNow}
-          </button>
         </div>
 
-        <div className="space-y-6">
+        <div>
           {en.top.lpFeatures.map((feature, idx) => (
             <article
               key={feature.title}
-              className={`grid items-center gap-6 ${topPageSectionCardClass} md:grid-cols-2 ${
+              className={`${topPageLpFeatureRowClass} ${
                 idx % 2 === 1 ? 'md:[&>*:first-child]:order-2' : ''
               }`}
             >
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-gatame-gold/90">
+              <div className="md:px-2">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gatame-gold/85">
                   {feature.kicker}
                 </p>
-                <h3 className="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl">
+                <h3 className="mt-1.5 text-lg font-bold tracking-tight text-white sm:text-xl">
                   {feature.title}
                 </h3>
-                <p className="mt-3 text-sm leading-relaxed text-white/82 sm:text-base">{feature.body}</p>
+                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/75 md:max-w-none">
+                  {feature.body}
+                </p>
+                <LpBulletList items={feature.bullets} />
               </div>
-              <div className="rounded-2xl border border-white/20 bg-black/30 p-4">
-                <div className="flex aspect-[9/16] items-center justify-center rounded-xl border border-dashed border-gatame-gold/55 bg-[#11182c]/75 text-center text-xs text-white/65 sm:text-sm">
-                  {feature.imagePlaceholder}
-                </div>
-              </div>
+              <LpSectionPhoneImage
+                src={TOP_PAGE_LP_FEATURE_IMAGES[idx] ?? TOP_PAGE_LP_FEATURE_IMAGES[0]}
+                alt={feature.title}
+              />
             </article>
           ))}
         </div>
 
-        <article className={`mt-6 grid items-center gap-6 ${topPageSectionCardClass} md:grid-cols-2`}>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-gatame-gold/90">
+        <article className={`${topPageLpFeatureRowClass} border-b-0 pt-4`}>
+          <div className="md:px-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gatame-gold/85">
               {en.top.lpMembershipKicker}
             </p>
-            <h3 className="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl">
+            <h3 className="mt-1.5 text-lg font-bold tracking-tight text-white sm:text-xl">
               {en.top.lpMembershipHeading}
             </h3>
-            <p className="mt-3 text-sm leading-relaxed text-white/82 sm:text-base">{en.top.lpMembershipBody}</p>
+            <p className="mt-2 text-sm leading-relaxed text-white/75">{en.top.lpMembershipBody}</p>
+            <LpBulletList items={en.top.lpMembershipBullets} />
             <button
               type="button"
               onClick={handleMembershipOptions}
-              className={`${topPageSecondaryCtaClass} mt-5 w-full sm:w-auto`}
+              className={`${topPageSecondaryCtaClass} mt-4 w-full sm:w-auto`}
             >
               {en.top.lpMembershipCta}
             </button>
           </div>
-          <div className="rounded-2xl border border-white/20 bg-black/30 p-4">
-            <div className="flex aspect-[9/16] items-center justify-center rounded-xl border border-dashed border-gatame-gold/55 bg-[#11182c]/75 text-center text-xs text-white/65 sm:text-sm">
-              {en.top.lpMembershipImagePlaceholder}
-            </div>
-          </div>
+          <LpSectionPhoneImage src={TOP_PAGE_LP_MEMBERSHIP_IMAGE} alt={en.top.lpMembershipHeading} />
         </article>
 
-        <div className="mt-8 text-center">
+        <div className="mt-6 text-center">
           <button type="button" onClick={handleStartAssessment} className={`${topPagePrimaryCtaClass} w-full max-w-md`}>
             {en.top.ctaStartAssessmentNow}
           </button>

@@ -18,8 +18,8 @@ type StepId = 'q1' | 'q2_alt' | 'q2_pains' | 'q3_goal' | 'q4_annual'
 type WizardState = {
   stepId: StepId
   segment: UserSegment | null
-  painIds: string[]
-  aspirations: AspirationStyleLabel[]
+  painId: string | null
+  aspiration: AspirationStyleLabel | null
   finalGoal: FinalGoalLabel | null
   annualMembership: boolean | null
   uiPhase: 'wizard' | 'submitting'
@@ -28,8 +28,8 @@ type WizardState = {
 const initialWizard: WizardState = {
   stepId: 'q1',
   segment: null,
-  painIds: [],
-  aspirations: [],
+  painId: null,
+  aspiration: null,
   finalGoal: null,
   annualMembership: null,
   uiPhase: 'wizard',
@@ -37,8 +37,8 @@ const initialWizard: WizardState = {
 
 type Action =
   | { type: 'SET_SEGMENT'; segment: UserSegment }
-  | { type: 'TOGGLE_PAIN'; id: string }
-  | { type: 'TOGGLE_ASPIRATION'; label: AspirationStyleLabel }
+  | { type: 'SET_PAIN'; id: string }
+  | { type: 'SET_ASPIRATION'; label: AspirationStyleLabel }
   | { type: 'SET_GOAL'; goal: FinalGoalLabel }
   | { type: 'SET_ANNUAL'; hasAnnual: boolean }
   | { type: 'NEXT' }
@@ -75,20 +75,14 @@ function wizardReducer(state: WizardState, action: Action): WizardState {
         ...state,
         segment: action.segment,
         stepId: 'q1',
-        painIds: novice ? [] : state.painIds,
-        aspirations: novice ? state.aspirations : [],
+        painId: novice ? null : state.painId,
+        aspiration: novice ? state.aspiration : null,
       }
     }
-    case 'TOGGLE_PAIN': {
-      const set = new Set(state.painIds)
-      set.has(action.id) ? set.delete(action.id) : set.add(action.id)
-      return { ...state, painIds: [...set] }
-    }
-    case 'TOGGLE_ASPIRATION': {
-      const set = new Set(state.aspirations)
-      set.has(action.label) ? set.delete(action.label) : set.add(action.label)
-      return { ...state, aspirations: [...set] as AspirationStyleLabel[] }
-    }
+    case 'SET_PAIN':
+      return { ...state, painId: action.id }
+    case 'SET_ASPIRATION':
+      return { ...state, aspiration: action.label }
     case 'SET_GOAL':
       return { ...state, finalGoal: action.goal }
     case 'SET_ANNUAL':
@@ -159,7 +153,7 @@ function buildPayload(state: WizardState): AssessmentRequest {
     return {
       userAttribute,
       problems: [],
-      aspirations: state.aspirations.length ? state.aspirations : [],
+      aspirations: state.aspiration ? [state.aspiration] : [],
       finalGoal: state.finalGoal,
       completedModuleIds: [],
     }
@@ -167,7 +161,7 @@ function buildPayload(state: WizardState): AssessmentRequest {
 
   return {
     userAttribute,
-    problems: [...state.painIds],
+    problems: state.painId ? [state.painId] : [],
     aspirations: [],
     finalGoal: state.finalGoal,
     completedModuleIds: [],
@@ -201,9 +195,9 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
       case 'q1':
         return state.segment !== null
       case 'q2_pains':
-        return true
+        return state.painId !== null
       case 'q2_alt':
-        return state.aspirations.length > 0
+        return state.aspiration !== null
       case 'q3_goal':
         return state.finalGoal !== null
       case 'q4_annual':
@@ -286,12 +280,12 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
                   <h3 id="q2-pains-title" className={`${stepHeadingClass} mb-2`}>
                     {en.assessment.q2PainsTitle}
                   </h3>
-                  <p className={stepHintClass}>{en.assessment.q2PainsHint}</p>
+                  <p className={stepHintClass}>{en.assessment.chooseOneHint}</p>
                   <AssessmentStatementList
                     aria-labelledby="q2-pains-title"
                     items={PAIN_ITEMS}
-                    selectedIds={state.painIds}
-                    onSelect={(id) => dispatch({ type: 'TOGGLE_PAIN', id })}
+                    selectedId={state.painId}
+                    onSelect={(id) => dispatch({ type: 'SET_PAIN', id })}
                   />
                 </section>
               )}
@@ -301,14 +295,14 @@ export default function AssessmentForm({ onSubmit, error }: AssessmentFormProps)
                   <h3 id="q2a-title" className={`${stepHeadingClass} mb-2`}>
                     {en.assessment.q2AltTitle}
                   </h3>
-                  <p className={stepHintClass}>{en.assessment.q2AltHint}</p>
+                  <p className={stepHintClass}>{en.assessment.chooseOneHint}</p>
                   <AssessmentStatementList
                     aria-labelledby="q2a-title"
                     items={NOVICE_VIBE_ITEMS}
-                    selectedIds={state.aspirations}
+                    selectedId={state.aspiration}
                     onSelect={(id) =>
                       dispatch({
-                        type: 'TOGGLE_ASPIRATION',
+                        type: 'SET_ASPIRATION',
                         label: id as AspirationStyleLabel,
                       })
                     }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useMembershipAccess } from '../../context/MembershipAccessContext'
-import type { AssessmentRequest } from '../../types'
+import type { AssessmentRequest, ScoredModule } from '../../types'
 import {
   GATAME_OPEN_MEMBERSHIP_OFFER_EVENT,
   type OpenMembershipOfferEventDetail,
@@ -58,9 +58,14 @@ function scrollToPathAnchor() {
 export type AppBottomBarProps = {
   assessmentRequest: AssessmentRequest | null
   catalogModuleTotal: number
+  recommendedModules: ScoredModule[]
 }
 
-export default function AppBottomBar({ assessmentRequest, catalogModuleTotal }: AppBottomBarProps) {
+export default function AppBottomBar({
+  assessmentRequest,
+  catalogModuleTotal,
+  recommendedModules,
+}: AppBottomBarProps) {
   const { session } = useAuth()
   const isAppLoggedIn = Boolean(session?.user)
   const { hasAnnualMembership } = useMembershipAccess()
@@ -203,6 +208,7 @@ export default function AppBottomBar({ assessmentRequest, catalogModuleTotal }: 
         onClose={closeProfile}
         assessmentRequest={assessmentRequest}
         catalogModuleTotal={catalogModuleTotal}
+        recommendedModules={recommendedModules}
       />
       <SyncSaveModal open={syncSaveOpen} onClose={() => setSyncSaveOpen(false)} />
     </>

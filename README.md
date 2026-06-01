@@ -102,11 +102,11 @@
 - Advanced Judoka — Black belt (shodan) and above
 - Elite BJJ Roller — Purple belt and above
 
-**Q2-alt（未経験者のみ）** — *What fighting style do you aspire to?*（複数選択可）
+**Q2-alt（未経験者のみ）** — *What fighting style do you aspire to?*（単一選択）
 
 - Dynamic Throws / Ground Control / Submission Arts / Standing to Ground
 
-**Q2（経験者・熟練者）** — *What technical challenges do you want to solve?*（複数選択可・スキップ可）
+**Q2（経験者・熟練者）** — *What is your top technical challenge right now?*（単一選択・必須）
 
 - Throw to Submission / Pin Escapes / Flipping the Turtle / Submission Arts Mastery / Guard Pass & Defense / Gripping Battles
 
@@ -124,7 +124,7 @@
 - 診断結果に基づく **4 モジュール** の順序付きリスト
 - モジュール単位の進捗・メモ・完了フィードバック
 - 4 モジュール完了後に **第 5 モジュール（BBS 認定準備）** を利用可能（コンバージョンゲート）
-- **4 モジュールすべて完了時:** ステージ完了プロンプト → **「Generate next path」** で同一診断・習得済み除外の **次 4 モジュール** を自動生成（`specification.md` §6.4）
+- **4 モジュールすべて完了時:** 次パス生成バナー + BBS チャレンジ促進 → **「Generate next path」** で同一診断・習得済み除外の **次 4 モジュール** を自動生成（`specification.md` §6.4）
 - **目標変更時:** 「Retake assessment」で診断からやり直し（副次導線）
 
 ### 4.3 練習前後の確認カード（実装仕様確定）
@@ -217,7 +217,7 @@ Advanced かつ Q2 **Gripping Battles**（`grip-fight`）選択時は Gripping �
 
 ### 7.4 実装上の注意
 
-- **重複排除:** Q2 / Q2-alt の複数選択時、マッピングプールを和集合し、抽出 4 件はすべてユニーク
+- **重複排除:** Q2 / Q2-alt は各 1 件のプールから抽選し、抽出 4 件はすべてユニーク
 - **枠不足:** プール内に INTERMEDIATE 等が足りない場合、カタログ全体の当該階層からランダム補完（`specification.md` §6.2）
 
 ### 7.5 マッピング概要

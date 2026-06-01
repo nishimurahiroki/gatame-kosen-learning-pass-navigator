@@ -8,7 +8,8 @@ import { GATAME_ANNUAL_JOIN_CHECKOUT_URL } from '../../constants/kajabiCheckout'
 import { useMembershipAccess } from '../../context/MembershipAccessContext'
 import en from '../../locales/en.json'
 import { openMembershipOffer } from '../../utils/membershipOfferEvent'
-import type { AssessmentRequest } from '../../types'
+import type { AssessmentRequest, ScoredModule } from '../../types'
+import ProfileModuleNotesSection from './ProfileModuleNotesSection'
 import {
   countCompletedTechniqueModules,
   GATAME_MODULE_PROGRESS_CHANGED_EVENT,
@@ -66,6 +67,7 @@ export interface ProfileScreenProps {
   onClose: () => void
   assessmentRequest: AssessmentRequest | null
   catalogModuleTotal: number
+  recommendedModules: ScoredModule[]
 }
 
 export default function ProfileScreen({
@@ -73,6 +75,7 @@ export default function ProfileScreen({
   onClose,
   assessmentRequest,
   catalogModuleTotal,
+  recommendedModules,
 }: ProfileScreenProps) {
   const { session, signOut } = useAuth()
   const user = session?.user
@@ -298,6 +301,14 @@ export default function ProfileScreen({
                   </button>
                 ) : null}
               </div>
+
+              <ProfileModuleNotesSection
+                profileOpen={open}
+                userId={user.id}
+                assessmentRequest={assessmentRequest}
+                recommendedModules={recommendedModules}
+                onCloseProfile={onClose}
+              />
 
               <section className="mt-6 rounded-2xl border border-white/[0.08] bg-[#060b14]/80 px-5 py-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/38">

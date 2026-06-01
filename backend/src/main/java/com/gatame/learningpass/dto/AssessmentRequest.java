@@ -24,7 +24,7 @@ public record AssessmentRequest(
     List<
         String> problems,
 
-    /** 未経験者向け Q2-alt（複数選択可）。 */
+    /** 未経験者向け Q2-alt（単一選択。フロントは 0〜1 件のリストで送る）。 */
     List<AspirationStyle> aspirations,
 
     /** 最終ゴール（Q3）。パス抽選には使わない。 */

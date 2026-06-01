@@ -193,7 +193,6 @@ export default function NavigatorApp() {
                     storageId={storageId}
                     onGuestEngagement={handleGuestEngagement}
                     onGenerateNextPath={handleGenerateNextPath}
-                    onRequestRetake={requestReset}
                     generatingNextPath={loading && Boolean(data)}
                   />
                 </div>
@@ -206,6 +205,7 @@ export default function NavigatorApp() {
           <AppBottomBar
             assessmentRequest={lastAssessment}
             catalogModuleTotal={Math.max(1, data.totalModules)}
+            recommendedModules={data.recommendedModules ?? []}
           />
         ) : null}
 

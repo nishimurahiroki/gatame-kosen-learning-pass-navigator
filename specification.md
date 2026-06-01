@@ -33,7 +33,7 @@ UI 文言の **正** は英語（プロフェッショナル・道場トーン�
 | Advanced Judoka | Black belt (shodan) and above | `JUDO_ADVANCED` |
 | Elite BJJ Roller | Purple belt and above | `BJJ_ADVANCED` |
 
-#### Q2-alt. What fighting style do you aspire to?（multiple select）
+#### Q2-alt. What fighting style do you aspire to?（single select）
 
 | 表示（英語） | マッピングキー（参考） |
 |--------------|------------------------|
@@ -74,7 +74,7 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 
 §1.2 Q1 と同一（5 択）。
 
-#### Q2. What technical challenges do you want to solve?（multiple select, optional）
+#### Q2. What is your top technical challenge right now?（single select）
 
 | 表示（英語） | シナリオ（英語） | pain ID |
 |--------------|------------------|---------|
@@ -85,7 +85,7 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 | Guard Pass & Defense | I want to retain my guard and hit sweeps. | `guard-pass-from-top`, `guard-bottom-sweep-submit` |
 | Gripping Battles | I lose the gripping exchange and can't start my attacks. | `grip-fight` |
 
-- **スキップ可:** 0 件選択でも次へ進める（プールはフォールバックまたはレベル既定で補完）。
+- **必須:** 1 件を選択して次へ進む（一度に一つの課題にフォーカス）。
 - **Gripping 例外:** Advanced かつ **Gripping Battles** 選択時、§4 の枠ルールを Gripping 例外行に切り替える。
 
 → プール定義: **§7.2**
@@ -147,8 +147,7 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 
 ```
 1. プール取得
-   └ 未経験: Q2-alt スタイル / 経験・熟練: Q2 課題（§7）に基づき候補モジュール ID プールを構築。
-      複数選択時は和集合し、重複を除去（§6.1）。
+   └ 未経験: Q2-alt スタイル（1 件） / 経験・熟練: Q2 課題（1 件）（§7）に基づき候補モジュール ID プールを構築。
 
 2. フィルタリング
    └ §4 のユーザーレベルに応じ、枠ルールで許可されない階層を除外。
@@ -174,7 +173,7 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 
 ### 6.1 重複排除
 
-- Q2（課題）または Q2-alt（スタイル）で **複数項目** を選択した場合、各選択肢のマッピング先プールを **和集合** する。
+- Q2（課題）および Q2-alt（スタイル）は **いずれも単一選択**。選択 1 件に対応するプールから抽選する。
 - 最終的に抽出される 4 モジュールは **すべてユニーク**。
 
 ### 6.2 枠不足の解消
@@ -193,22 +192,21 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 
 | タイミング | 動作 |
 |------------|------|
-| 4 モジュールすべて完了 | **ステージ完了プロンプト**を表示（初回自動。`Not now` 後は同一パス構成では再表示しない） |
-| 主 CTA「Generate next path」 | **再診断なし**。同一 `AssessmentRequest` + `completedModuleIds`（lifetime 習得済み）で `POST /api/assessment` を再実行し、**未完了モジュールから新 4 件**を抽選 |
-| 副 CTA「Retake assessment」 | 診断ウィザードへ（目標・課題変更時）。学習パス本体はクリア、モジュール TODO/Memo は保持 |
+| 4 テクニックモジュールすべて完了 | パス上部に **次パス生成バナー**（未習得モジュールが残る場合）。**BBS チャレンジ促進モーダル**を表示（`Not now` 後は同一パス構成では再表示しない） |
+| バナー「Generate next path」 | **再診断なし**。同一 `AssessmentRequest` + `completedModuleIds`（lifetime 習得済み）で `POST /api/assessment` を再実行し、**未完了モジュールから新 4 件**を抽選 |
+| 「Retake assessment」（`NavigatorApp` ヘッダー） | 診断ウィザードへ（目標・課題変更時）。学習パス本体はクリア、モジュール TODO/Memo は保持 |
 | 次パス生成成功 | セッション完了 ID をリセット（新パス署名）。`lifetimeMasteredIds` / BBS 宣言 / TODO/Memo は保持 |
-| カタログ習得済み | 主 CTA を非表示。副 CTA（再診断）のみ |
-
-**Annual Membership プロモ:** ステージ完了プロンプト表示中は抑止。閉じた後（または次パス生成後）に従来どおり 24h クールダウン付きで表示可。
+| カタログ習得済み | 次パス生成バナー非表示。再診断のみ |
 
 **関連ファイル:**
 
 | ファイル | 役割 |
 |----------|------|
-| `frontend/src/components/skillmap/PathStageCompleteOverlay.tsx` | ステージ完了 UI |
+| `frontend/src/components/skillmap/VerticalPathContainer.tsx` | 次パス生成バナー・BBS プロモ表示 |
+| `frontend/src/components/skillmap/PathBbsChallengePromoOverlay.tsx` | BBS チャレンジ促進モーダル |
+| `frontend/src/utils/pathBbsChallengePromoStorage.ts` | プロモ dismiss（パス署名単位） |
 | `frontend/src/hooks/useLearningPath.ts` | `generateNextPath()` |
 | `frontend/src/utils/progressStorage.ts` | lifetime / `completedModuleIds` 構築 |
-| `frontend/src/utils/pathStageCompleteStorage.ts` | プロンプト dismiss（パス署名単位） |
 
 ---
 
@@ -230,7 +228,7 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 | **Throw to Submission** | `standing-flow-to-submission` | `fundamental-tachi-waza`, `osaekomi`, `kansetsu-waza`, `shime-waza`, `throwing`, `shime-waza-transition`, `kansetsu-waza-transition`, `osaekomi-transition` |
 | **Pin Escapes** | `pin-after-throw` | `solo-newaza-workout`, `osaekomi`, `escape-from-osaekomi`, `on-the-turtle`, `shime-waza-transition`, `kansetsu-waza-transition` |
 | **Flipping the Turtle** | `turtle-breakdown` | `solo-newaza-workout`, `kansetsu-waza`, `shime-waza`, `on-the-turtle`, `shime-waza-transition`, `kansetsu-waza-transition` |
-| **Submission Arts Mastery** | （和集合時に §6.1） | `osaekomi`, `kansetsu-waza`, `shime-waza`, `on-the-turtle`, `shime-waza-transition`, `kansetsu-waza-transition` |
+| **Submission Arts Mastery** | I want to develop my submission techniques. | `osaekomi`, `kansetsu-waza`, `shime-waza`, `on-the-turtle`, `shime-waza-transition`, `kansetsu-waza-transition` |
 | **Guard Pass & Defense** | `guard-pass-from-top`, `guard-bottom-sweep-submit` | `solo-newaza-workout`, `kansetsu-waza`, `guard-pass-top`, `guard-pass-bottom`, `shime-waza-transition`, `kansetsu-waza-transition` |
 | **Gripping Battles** | `grip-fight` | `fundamental-tachi-waza`, `kumikata-ai-yotsu`, `kumikata-kenka-yotsu`, `break-gripping-ai-yotsu`, `break-gripping-kenka-yotsu`, `osaekomi-transition` |
 
@@ -252,7 +250,7 @@ Q3 は **パス生成の抽選には使わない**（BBS 早期訴求バナー�
 | `backend/src/main/resources/modules.json` | モジュール定義 |
 | `backend/.../LearningPathService.java` | 診断 API・パス生成 |
 | `frontend/src/api/streetPathWithBbs.ts` | UI 側 4+1 表示 |
-| `frontend/src/components/skillmap/PathStageCompleteOverlay.tsx` | ステージ完了 → 次パス生成 UI（§6.4） |
+| `frontend/src/components/skillmap/PathBbsChallengePromoOverlay.tsx` | ステージ完了時 BBS チャレンジ促進（§6.4） |
 | `frontend/src/hooks/useLearningPath.ts` | `generate` / `generateNextPath` |
 | `frontend/src/App.tsx` | ルーティング・トップゲートウェイ（§10.6） |
 | `frontend/src/components/TopPage.tsx` | トップ（判断・振り分け）— 実装時追加 |

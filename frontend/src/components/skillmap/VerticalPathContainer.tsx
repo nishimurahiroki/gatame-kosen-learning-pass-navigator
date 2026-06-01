@@ -26,26 +26,32 @@ import {
   progressSessionId,
   addCompletedBbsLevel,
 } from '../../utils/progressStorage'
-import {
-  isPathStageCompleteDismissed,
-  markPathStageCompleteDismissed,
-} from '../../utils/pathStageCompleteStorage'
 import { allTodosChecked, moduleTodoItemsFromModule } from '../../utils/modulePracticeTodos'
 import {
-  loadHasAnnualMembership,
-  saveAnnualMembershipAccess,
-} from '../../utils/annualMembershipAccess'
-import {
-  isAnnualMembershipPromoOnCooldown,
-  markAnnualMembershipPromoDismissed,
-} from '../../utils/annualMembershipPromoStorage'
+  isPathBbsChallengePromoDismissed,
+  markPathBbsChallengePromoDismissed,
+} from '../../utils/pathBbsChallengePromoStorage'
 import en from '../../locales/en.json'
 import {
   loadRemoteModuleProgress,
   loadRemoteSessionDetails,
   saveRemoteModuleFeedback,
 } from '../../api/supabaseProgressApi'
-import { syncModuleDetail, syncModuleProgress } from '../../sync/syncService'
+import {
+  GATAME_OPEN_PATH_MODULE_EVENT,
+  subscribeModuleMemoChanged,
+  type ModuleMemoChangedDetail,
+  type OpenPathModuleEventDetail,
+} from '../../utils/moduleMemoEvents'
+import { getPendingModuleDetail, resolveMergedModuleMemo } from '../../utils/mergeModuleMemoState'
+import {
+  GuestModulePersistError,
+  ModuleMemoPersistError,
+  persistModuleMemo,
+  readModuleDetailSlice,
+  scheduleModuleDetailCheckedSync,
+} from '../../utils/persistModuleMemo'
+import { syncModuleProgress } from '../../sync/syncService'
 import { showToast } from '../common/Toast'
 import ModuleCompleteFeedbackDialog from './ModuleCompleteFeedbackDialog'
 import VerticalPathDrawerPanel from './VerticalPathDrawerPanel'
@@ -57,8 +63,7 @@ import PathStepNode, { type PathStepNodeData, type PathStepVisualState } from '.
 import ProgressTrailEdge, { type ProgressTrailEdgeData } from './ProgressTrailEdge'
 import { computePathLayout, PATH_BREAKPOINT_LG } from './verticalPathLayout'
 import { resolveTrailHandles } from './pathTrailHandles'
-import AnnualMembershipPromoOverlay from './AnnualMembershipPromoOverlay'
-import PathStageCompleteOverlay from './PathStageCompleteOverlay'
+import PathBbsChallengePromoOverlay from './PathBbsChallengePromoOverlay'
 import PracticeCheckCard from '../practice/PracticeCheckCard'
 
 const nodeTypes = { pathStep: PathStepNode, bbsStep: BbsPathStepNode }
@@ -77,8 +82,6 @@ export interface VerticalPathContainerProps {
   onGuestEngagement?: (kind: GuestEngagementKind) => void
   /** 4 モジュール完了後: 残モジュールから次パスを生成 */
   onGenerateNextPath?: () => Promise<void>
-  /** 診断のやり直し（ConfirmDialog へ） */
-  onRequestRetake?: () => void
   generatingNextPath?: boolean
 }
 
@@ -142,7 +145,6 @@ function VerticalPathInner({
   storageId,
   onGuestEngagement,
   onGenerateNextPath,
-  onRequestRetake,
   generatingNextPath = false,
 }: VerticalPathContainerProps) {
   const allRecommended = response.recommendedModules ?? []
@@ -186,6 +188,11 @@ function VerticalPathInner({
     [pathItems],
   )
 
+  const conversionGateBbs = useMemo(() => {
+    const gate = pathItems.find((it) => it.isBbsModule)
+    return gate?.isBbsModule ? gate.bbs : null
+  }, [pathItems])
+
   const pathEntryModuleId = pathModuleIds[0] ?? null
 
   const policyLockedModuleIds = useMemo(() => {
@@ -202,6 +209,20 @@ function VerticalPathInner({
 
   type ModuleProgressSlice = { checked: Record<string, boolean>; memo: string }
   const [progressByModule, setProgressByModule] = useState<Record<string, ModuleProgressSlice>>({})
+  const progressByModuleRef = useRef(progressByModule)
+  progressByModuleRef.current = progressByModule
+
+  const patchProgressByModule = useCallback(
+    (moduleId: string, updater: (cur: ModuleProgressSlice) => ModuleProgressSlice) => {
+      const prev = progressByModuleRef.current
+      const cur = prev[moduleId] ?? { checked: {}, memo: '' }
+      const next = { ...prev, [moduleId]: updater(cur) }
+      progressByModuleRef.current = next
+      setProgressByModule(next)
+    },
+    [],
+  )
+
   const [feedbackModuleId, setFeedbackModuleId] = useState<string | null>(null)
 
   const todoItemsByModule = useMemo(() => {
@@ -220,20 +241,40 @@ function VerticalPathInner({
       // Supabase からリモートデータをロード（ブラウザ間同期）
       const remote = await loadRemoteSessionDetails(userId, sessionKey)
       if (!cancelled && Object.keys(remote).length > 0) {
-        const result: Record<string, ModuleProgressSlice> = {}
-        for (const [mid, detail] of Object.entries(remote)) {
-          result[mid] = {
-            checked: detail.checkedItems ?? {},
-            memo: detail.memo ?? '',
+        setProgressByModule((prev) => {
+          const next = { ...prev }
+          for (const [mid, detail] of Object.entries(remote)) {
+            const cur = next[mid] ?? { checked: {}, memo: '' }
+            const pending = getPendingModuleDetail(userId, sessionKey, mid)
+            next[mid] = {
+              checked: detail.checkedItems ?? cur.checked,
+              memo: resolveMergedModuleMemo(cur.memo, detail, pending),
+            }
           }
-        }
-        setProgressByModule(result)
+          progressByModuleRef.current = next
+          return next
+        })
       }
     })()
     return () => {
       cancelled = true
     }
   }, [sessionKey, userId])
+
+  const applyModuleMemoDetail = useCallback(
+    (detail: ModuleMemoChangedDetail) => {
+      patchProgressByModule(detail.moduleId, (cur) => ({
+        checked: detail.checkedItems ?? cur.checked,
+        memo: detail.memo,
+      }))
+    },
+    [patchProgressByModule],
+  )
+
+  useEffect(() => {
+    if (!userId || !sessionKey) return
+    return subscribeModuleMemoChanged(applyModuleMemoDetail)
+  }, [applyModuleMemoDetail, sessionKey, userId])
 
   const todosCompleteById = useMemo(() => {
     const out = new Map<string, boolean>()
@@ -347,63 +388,39 @@ function VerticalPathInner({
     [assessmentRequest, pathModuleIds, catalogModuleTotal],
   )
 
-  const [stageCompleteOpen, setStageCompleteOpen] = useState(false)
-
-  useEffect(() => {
-    if (!pathCompleteOpen || !assessmentRequest) {
-      setStageCompleteOpen(false)
-      return
-    }
-    if (isPathStageCompleteDismissed(assessmentRequest, pathModuleIds)) {
-      setStageCompleteOpen(false)
-      return
-    }
-    setStageCompleteOpen(true)
-  }, [pathCompleteOpen, assessmentRequest, pathModuleIds])
-
-  const dismissStageComplete = useCallback(() => {
-    if (assessmentRequest) {
-      markPathStageCompleteDismissed(assessmentRequest, pathModuleIds)
-    }
-    setStageCompleteOpen(false)
-  }, [assessmentRequest, pathModuleIds])
-
   const handleGenerateNextPath = useCallback(async () => {
     if (!onGenerateNextPath || generatingNextPath) return
     await onGenerateNextPath()
-    setStageCompleteOpen(false)
   }, [onGenerateNextPath, generatingNextPath])
 
-  const [annualPromoOpen, setAnnualPromoOpen] = useState(false)
-  const [annualPurchased, setAnnualPurchased] = useState(() => loadHasAnnualMembership())
+  const [bbsChallengePromoOpen, setBbsChallengePromoOpen] = useState(false)
 
   useEffect(() => {
-    if (annualPurchased) return
-    if (!pathCompleteOpen) return
-    if (stageCompleteOpen) return
-    if (isAnnualMembershipPromoOnCooldown()) return
-    const t = window.setTimeout(() => setAnnualPromoOpen(true), 450)
-    return () => window.clearTimeout(t)
-  }, [pathCompleteOpen, stageCompleteOpen, annualPurchased])
-
-  const prevPathCompleteOpen = useRef(false)
-  useEffect(() => {
-    if (prevPathCompleteOpen.current && !pathCompleteOpen) {
-      setAnnualPromoOpen(false)
+    if (!pathCompleteOpen || !assessmentRequest || !conversionGateBbs) {
+      setBbsChallengePromoOpen(false)
+      return
     }
-    prevPathCompleteOpen.current = pathCompleteOpen
-  }, [pathCompleteOpen])
+    if (isPathBbsChallengePromoDismissed(assessmentRequest, pathModuleIds)) {
+      setBbsChallengePromoOpen(false)
+      return
+    }
+    const t = window.setTimeout(() => setBbsChallengePromoOpen(true), 450)
+    return () => window.clearTimeout(t)
+  }, [pathCompleteOpen, assessmentRequest, pathModuleIds, conversionGateBbs])
 
-  const closeAnnualPromoOnly = useCallback(() => {
-    setAnnualPromoOpen(false)
-    markAnnualMembershipPromoDismissed()
-  }, [])
+  const dismissBbsChallengePromo = useCallback(() => {
+    if (assessmentRequest) {
+      markPathBbsChallengePromoDismissed(assessmentRequest, pathModuleIds)
+    }
+    setBbsChallengePromoOpen(false)
+  }, [assessmentRequest, pathModuleIds])
 
-  const markAnnualMembershipPurchased = useCallback(() => {
-    saveAnnualMembershipAccess(true)
-    setAnnualPurchased(true)
-    setAnnualPromoOpen(false)
-  }, [])
+  const handleExploreBbsFromPromo = useCallback(() => {
+    if (conversionGateBbs) {
+      setDrawerModuleId(conversionGateBbs.id)
+    }
+    dismissBbsChallengePromo()
+  }, [conversionGateBbs, dismissBbsChallengePromo])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -459,6 +476,15 @@ function VerticalPathInner({
     [pathItems, userId, onGuestEngagement],
   )
 
+  useEffect(() => {
+    const onOpenFromProfile = (e: Event) => {
+      const moduleId = (e as CustomEvent<OpenPathModuleEventDetail>).detail?.moduleId
+      if (typeof moduleId === 'string' && moduleId) onOpen(moduleId)
+    }
+    window.addEventListener(GATAME_OPEN_PATH_MODULE_EVENT, onOpenFromProfile)
+    return () => window.removeEventListener(GATAME_OPEN_PATH_MODULE_EVENT, onOpenFromProfile)
+  }, [onOpen])
+
   const onToggleComplete = useCallback(
     (moduleId: string) => {
       setCompletedIds((prev) => {
@@ -485,36 +511,40 @@ function VerticalPathInner({
   const handleToggleTodo = useCallback(
     (moduleId: string, itemId: string, checked: boolean) => {
       if (checked && !userId) onGuestEngagement?.('todo_check')
-      setProgressByModule((p) => {
-        const cur = p[moduleId] ?? { checked: {}, memo: '' }
+      patchProgressByModule(moduleId, (cur) => {
         const currentChecked = { ...cur.checked, [itemId]: checked }
         if (!checked) delete currentChecked[itemId]
-        if (userId) {
-          syncModuleDetail(userId, sessionKey, moduleId, {
-            checkedItems: currentChecked,
-            memo: cur.memo,
-          })
-        }
-        return { ...p, [moduleId]: { ...cur, checked: currentChecked } }
+        return { ...cur, checked: currentChecked }
       })
+      if (!userId) return
+      scheduleModuleDetailCheckedSync(userId, sessionKey, moduleId, () =>
+        readModuleDetailSlice(progressByModuleRef.current, moduleId),
+      )
     },
-    [sessionKey, userId, onGuestEngagement],
+    [patchProgressByModule, sessionKey, userId, onGuestEngagement],
   )
 
   const handleMemoSave = useCallback(
-    (moduleId: string, memo: string) => {
-      setProgressByModule((p) => {
-        const cur = p[moduleId] ?? { checked: {}, memo: '' }
-        if (userId) {
-          syncModuleDetail(userId, sessionKey, moduleId, {
-            checkedItems: cur.checked,
-            memo,
-          })
+    async (moduleId: string, memo: string) => {
+      patchProgressByModule(moduleId, (cur) => ({ ...cur, memo }))
+      if (!userId) {
+        showToast(en.top.saveProgressPromptDrawer, 'info')
+        throw new GuestModulePersistError()
+      }
+      const checkedItems = progressByModuleRef.current[moduleId]?.checked ?? {}
+      try {
+        await persistModuleMemo(userId, sessionKey, moduleId, {
+          checkedItems,
+          memo,
+        })
+      } catch (err) {
+        if (err instanceof ModuleMemoPersistError) {
+          showToast(en.toast.memoSaveFailed, 'error')
         }
-        return { ...p, [moduleId]: { ...cur, memo } }
-      })
+        throw err
+      }
     },
-    [sessionKey, userId],
+    [patchProgressByModule, sessionKey, userId],
   )
 
   const submitModuleFeedback = useCallback(
@@ -735,27 +765,28 @@ function VerticalPathInner({
   }, [progressByModule])
 
   const conversionGateUrl = useMemo(() => {
-    const gate = pathItems.find((it) => it.isBbsModule)
-    if (!gate || !gate.isBbsModule) return null
-    return gate.bbs.oneTimeCheckoutUrl ?? gate.bbs.monthlyCheckoutUrl ?? gate.bbs.curriculumAccessUrl ?? null
-  }, [pathItems])
+    if (!conversionGateBbs) return null
+    return (
+      conversionGateBbs.oneTimeCheckoutUrl ??
+      conversionGateBbs.monthlyCheckoutUrl ??
+      conversionGateBbs.curriculumAccessUrl ??
+      null
+    )
+  }, [conversionGateBbs])
 
   const handleSetTechniqueChecked = useCallback(
     (moduleId: string, techniqueId: string, checked: boolean) => {
-      setProgressByModule((p) => {
-        const cur = p[moduleId] ?? { checked: {}, memo: '' }
+      patchProgressByModule(moduleId, (cur) => {
         const currentChecked = { ...cur.checked, [techniqueId]: checked }
         if (!checked) delete currentChecked[techniqueId]
-        if (userId) {
-          syncModuleDetail(userId, sessionKey, moduleId, {
-            checkedItems: currentChecked,
-            memo: cur.memo,
-          })
-        }
-        return { ...p, [moduleId]: { ...cur, checked: currentChecked } }
+        return { ...cur, checked: currentChecked }
       })
+      if (!userId) return
+      scheduleModuleDetailCheckedSync(userId, sessionKey, moduleId, () =>
+        readModuleDetailSlice(progressByModuleRef.current, moduleId),
+      )
     },
-    [sessionKey, userId],
+    [patchProgressByModule, sessionKey, userId],
   )
 
   const practiceCheck = usePracticeCheck({
@@ -788,7 +819,7 @@ function VerticalPathInner({
       />
 
       <div className="relative z-10 mx-auto w-full max-w-[1600px] px-3 sm:px-6 lg:px-10">
-        {pathCompleteOpen && !stageCompleteOpen && canGenerateNext && onGenerateNextPath ? (
+        {pathCompleteOpen && canGenerateNext && onGenerateNextPath ? (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gatame-gold/35 bg-gatame-midnight/90 px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
             <p className="text-sm font-medium text-white/90">{en.pathStageComplete.bannerHint}</p>
             <button
@@ -948,22 +979,11 @@ function VerticalPathInner({
         ) : null}
       </AnimatePresence>
 
-      <PathStageCompleteOverlay
-        open={stageCompleteOpen}
-        canGenerateNext={canGenerateNext && Boolean(onGenerateNextPath)}
-        generating={generatingNextPath}
-        onGenerateNext={() => void handleGenerateNextPath()}
-        onRetakeAssessment={() => {
-          dismissStageComplete()
-          onRequestRetake?.()
-        }}
-        onDismiss={dismissStageComplete}
-      />
-
-      <AnnualMembershipPromoOverlay
-        open={annualPromoOpen}
-        onClose={closeAnnualPromoOnly}
-        onMarkAnnualPurchased={markAnnualMembershipPurchased}
+      <PathBbsChallengePromoOverlay
+        open={bbsChallengePromoOpen}
+        bbsLevel={conversionGateBbs?.urlLevel}
+        onExploreBbs={handleExploreBbsFromPromo}
+        onDismiss={dismissBbsChallengePromo}
       />
       <ModuleCompleteFeedbackDialog
         open={Boolean(feedbackModuleId)}

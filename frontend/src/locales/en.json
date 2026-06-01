@@ -20,32 +20,48 @@
     "ctaStartAssessmentNow": "Start your assessment now",
     "lpBadge": "How it works",
     "lpHeading": "Train with clarity, not guesswork",
-    "lpSubheading": "Build a personalized roadmap, follow a clear daily plan, and keep improving from anywhere.",
+    "lpSubheading": "Build a personalized roadmap, follow a clear daily plan, and manage your progress session by session.",
     "lpFeatures": [
       {
         "kicker": "Feature 01",
         "title": "Personalized Roadmap",
         "body": "Answer a short assessment and get a 4-module learning path tailored to your level, goals, and training style.",
-        "imagePlaceholder": "Smartphone mockup — Personalized Roadmap (image coming soon)"
+        "bullets": [
+          "Four focused questions on your level, challenges, and goals",
+          "Step-by-step learning matched to where you are now",
+          "Built to target the problems you actually want to fix"
+        ]
       },
       {
         "kicker": "Feature 02",
         "title": "Plan Today, Review After Training",
         "body": "Know exactly what to work on before class, then review what changed after training. No guesswork—just a clear loop you can repeat every session.",
-        "imagePlaceholder": "Smartphone mockup — Daily plan & review (image coming soon)"
+        "bullets": [
+          "Three focus points for every technique",
+          "Train without second-guessing what to do next",
+          "Support for what to work on before and after class"
+        ]
       },
       {
         "kicker": "Feature 03",
-        "title": "Anytime, Anywhere",
-        "body": "Open your path on any device and continue where you left off. Your roadmap stays with you from home to the gym.",
-        "imagePlaceholder": "Smartphone mockup — Anytime, Anywhere (image coming soon)"
+        "title": "Structured Progress Management",
+        "body": "Check off techniques, capture session notes, and mark completions as you train. Sign in to sync your path to the cloud and pick up exactly where you left off.",
+        "bullets": [
+          "Track your progress at a glance",
+          "Sign in to resume on any device",
+          "Session notes to get more from every round"
+        ]
       }
     ],
     "lpMembershipKicker": "Annual Membership",
     "lpMembershipHeading": "Annual Membership + Learning Path",
     "lpMembershipBody": "Unlock 150+ technique videos, then let your Learning Path pick the right videos for your current needs—so every session moves you forward.",
-    "lpMembershipCta": "See Annual Membership options",
-    "lpMembershipImagePlaceholder": "Smartphone mockup — Membership + Learning Path (image coming soon)"
+    "lpMembershipBullets": [
+      "150+ technique videos on demand",
+      "Video picks matched to your Learning Path",
+      "Black Belt System promotion codes—$100 off Kyukyu and $200 off Sankyu"
+    ],
+    "lpMembershipCta": "See Annual Membership options"
   },
   "app": {
     "title": "Learning Path Navigator",
@@ -218,15 +234,16 @@
     "noPath": "No personalized path can be displayed."
   },
   "pathStageComplete": {
-    "badge": "Stage complete",
-    "title": "Ready for your next challenge?",
-    "description": "You finished all 4 modules on this path. Generate your next set of modules from what is still left in your curriculum.",
-    "descriptionExhausted": "You have completed every module matched to this assessment. Retake the assessment if your goals or focus areas have changed.",
+    "bannerHint": "Stage complete — keep going with your next 4 modules.",
     "generateNext": "Generate next path",
-    "generating": "Generating…",
-    "retakeAssessment": "Retake assessment",
-    "notNow": "Not now",
-    "bannerHint": "Stage complete — keep going with your next 4 modules."
+    "generating": "Generating…"
+  },
+  "bbsChallengePromo": {
+    "badge": "Stage complete",
+    "title": "Ready for your Black Belt System challenge?",
+    "description": "You finished all 4 modules on this path. Take the next step with expert feedback and formal rank certification.",
+    "cta": "Explore Black Belt System",
+    "notNow": "Not now"
   },
   "bbsGate": {
     "pathTitle": "Black Belt System",
@@ -336,6 +353,25 @@
       "markPurchased": "I purchased Annual Membership"
     }
   },
+  "profileNotes": {
+    "heading": "Module notes",
+    "empty": "No notes yet. Open a module on your learning path and use the Notes field.",
+    "loading": "Loading notes…",
+    "updated": "Updated {date}",
+    "expand": "Show full note",
+    "collapse": "Hide note",
+    "openInPath": "Open in learning path",
+    "editLabel": "Your note",
+    "save": "Save note",
+    "saving": "Saving…",
+    "delete": "Delete note",
+    "deleteTitle": "Delete this note?",
+    "deleteDescription": "This note will be removed from your account for this learning path.",
+    "deleteConfirm": "Delete",
+    "deleteCancel": "Cancel",
+    "saved": "Note saved.",
+    "deleted": "Note deleted."
+  },
   "feedback": {
     "title": "Step completion feedback",
     "moduleLine": "“{name}”",
@@ -358,10 +394,8 @@
     "questionProgress": "Question {current} / {total}",
     "chooseOneHint": "Choose one option below.",
     "q1Title": "Q1. Which profile fits you best today?",
-    "q2PainsTitle": "Q2. What technical challenges do you want to solve?",
-    "q2PainsHint": "Select any that apply—or skip this step if you prefer a broad path.",
+    "q2PainsTitle": "Q2. What is your top technical challenge right now?",
     "q2AltTitle": "Q2. What fighting style do you aspire to?",
-    "q2AltHint": "Select all styles that resonate with you.",
     "q3GoalTitle": "Q3. What is your ultimate goal for this path?",
     "q4AnnualTitle": "Q4. Do you have an active Annual Membership?",
     "q4AnnualHint": "Includes access to the +150 technique video library on Gatame Kosen Online.",

@@ -149,7 +149,7 @@
   Kajabi 導線・別デバイス復元・**Magic Link のみ**（§10.5）。未認証 Lookup は行わない。
 
 - `frontend/src/NavigatorApp.tsx`  
-  診断ウィザードと縦型学習パスの切替。Retake・Annual Membership プロモ等のオーケストレーション。
+  診断ウィザードと縦型学習パスの切替。Retake・次パス生成等のオーケストレーション。
 
 - `frontend/src/index.css`  
   グローバルスタイル（Tailwind + React Flowスタイル読み込み）。
@@ -183,10 +183,13 @@
 ### src/components/skillmap
 
 - `frontend/src/components/skillmap/VerticalPathContainer.tsx`  
-  **現行** 縦型学習パス UI（README §2.3 **4 + 1**）。4 モジュール完了 → ステージ完了プロンプト → `generateNextPath`（§6.4）。
+  **現行** 縦型学習パス UI（README §2.3 **4 + 1**）。4 モジュール完了 → 次パス生成バナー + BBS チャレンジプロモ → `generateNextPath`（§6.4）。
 
-- `frontend/src/components/skillmap/PathStageCompleteOverlay.tsx`  
-  ステージ完了プロンプト（Generate next path / Retake / Not now）。
+- `frontend/src/components/skillmap/PathBbsChallengePromoOverlay.tsx`  
+  ステージ完了時の BBS チャレンジ促進モーダル。
+
+- `frontend/src/utils/pathBbsChallengePromoStorage.ts`  
+  BBS プロモの dismiss 状態（パス署名単位・localStorage）。
 
 - `frontend/src/components/practice/PracticeCheckCard.tsx`  
   Confirm Card 本体（成功 / Not Working / Not now、Undo 5 秒、BBS CTA）。
@@ -219,7 +222,7 @@
 
 ### #1 AssessmentForm: Q1 切替後 Next 無反応バグ修正
 - `frontend/src/components/assessment/AssessmentForm.tsx`
-- `SET_SEGMENT` 時に segment が変わった場合 `stepId` を `q1` にリセットし、無効化される回答（NOVICE 化で interests/painIds、経験者化で aspirations）をクリア。
+- `SET_SEGMENT` 時に segment が変わった場合 `stepId` を `q1` にリセットし、無効化される回答（NOVICE 化で painId、経験者化で aspiration）をクリア。
 - `NEXT` / `BACK` で `state.stepId` が現 order に含まれない（未到達ステップ）場合は order の先頭に復帰させる防御を追加。
 
 ### #2 モジュール完了を楽観更新に変更（サーバー停止時も完了可能）
@@ -255,7 +258,6 @@
   - `common.cancel` / `common.confirm` を追加。
   - `confirm.retakeAssessment` / `confirm.bbsMastered` / `confirm.annualMembership` を追加。
 - `frontend/src/NavigatorApp.tsx`: 「Retake assessment」をクリックすると ConfirmDialog（destructive）を開く。説明文で「学習パスはクリアされる／進捗・メモは保たれる」を明示。
-- `frontend/src/components/skillmap/AnnualMembershipPromoOverlay.tsx`: 「I have Annual Membership」を押下時に ConfirmDialog（default tone）を表示。
 - `frontend/src/components/skillmap/VerticalPathContainer.tsx`:
   - `handleDeclareBbsMastered` を「ConfirmDialog を開くだけ」に変更。
   - 確認後 `handleConfirmBbsMastered` で `addCompletedBbsLevel` 等を実行。
@@ -265,15 +267,6 @@
 - `frontend/src/components/skillmap/PathStepNode.tsx`
 - 各ノードのカテゴリ・名前直下に出ていた `<p className="...font-mono...">score {module.finalScore}</p>` を完全削除。
 - 推奨度はトポロジカル順とハイライト（active/locked/completed）で伝える方針に統一。
-
-### #7 AnnualMembershipPromo の多重表示抑制
-- `frontend/src/utils/annualMembershipPromoStorage.ts`:
-  - `isAnnualMembershipPromoOnCooldown()` / `markAnnualMembershipPromoDismissed()` を追加。
-  - 「Not now」押下から **24 時間**は両トリガーともプロモを抑止。
-- `frontend/src/components/skillmap/VerticalPathContainer.tsx`:
-  - 診断直後の自動表示は **同一ブラウザセッション 1 回**のみ（`sessionStorage` にフラグ）。リロードや「Retake」越しでも再表示しない。
-  - 学習パス完了時の自動表示はクールダウン中なら抑止。
-  - `closeAnnualPromoOnly`（Not now / 背景クリック）で `markAnnualMembershipPromoDismissed` を呼ぶ。
 
 ### #8 Forgot Password に Resend ボタンと再入力導線
 - `frontend/src/components/auth/AccessPage.tsx`
