@@ -8,7 +8,11 @@ import {
   syncLearningPath,
   syncModuleProgress,
 } from '../sync/syncService'
-import { fetchLearningPath } from '../api/learningPathApi'
+import {
+  fetchLearningPath,
+  isRetryableLearningPathError,
+  prewarmBackendHealth,
+} from '../api/learningPathApi'
 import { mergeGuestOnSignIn } from '../sync/mergeGuestOnSignIn'
 import en from '../locales/en.json'
 import type { AssessmentRequest, AssessmentResponse } from '../types'
@@ -30,8 +34,12 @@ import {
   promotePathSessionToLifetime,
 } from '../utils/progressStorage'
 
-/** 学習パス生成のタイムアウト（25 秒） */
-export const LEARNING_PATH_TIMEOUT_MS = 25_000
+/** 学習パス生成の 1 回あたりのタイムアウト（本番: Render コールドスタート対策） */
+export const LEARNING_PATH_TIMEOUT_MS = import.meta.env.PROD ? 90_000 : 25_000
+
+const LEARNING_PATH_MAX_ATTEMPTS = 2
+
+export type PathGenerationHint = 'default' | 'retry'
 
 export type UseLearningPathOptions = {
   /** localStorage キー（Guest: guest:deviceId / Member: userId） */
@@ -67,7 +75,9 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
   })
   const [lastAssessment, setLastAssessment] = useState<AssessmentRequest | null>(null)
   const [hydrated, setHydrated] = useState(false)
+  const [generationHint, setGenerationHint] = useState<PathGenerationHint | null>(null)
   const inflightRef = useRef<AbortController | null>(null)
+  const userCanceledRef = useRef(false)
   const nextPathInFlightRef = useRef(false)
   const lastAssessmentRef = useRef<AssessmentRequest | null>(null)
   const dataRef = useRef<AssessmentResponse | null>(null)
@@ -147,6 +157,11 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
     }
   }, [storageId, syncUserId])
 
+  useEffect(() => {
+    if (!hydrated) return
+    prewarmBackendHealth()
+  }, [hydrated])
+
   const persist = useCallback(
     (request: AssessmentRequest, response: AssessmentResponse) => {
       if (!storageId) return
@@ -164,20 +179,16 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
       options?: { soft?: boolean },
     ): Promise<AssessmentResponse | undefined> => {
       inflightRef.current?.abort()
-      const controller = new AbortController()
-      inflightRef.current = controller
-
-      const timeoutId = window.setTimeout(() => {
-        controller.abort()
-      }, LEARNING_PATH_TIMEOUT_MS)
+      userCanceledRef.current = false
+      setGenerationHint('default')
 
       if (options?.soft) {
         setState((s) => ({ ...s, loading: true, error: null }))
       } else {
         setState({ data: null, loading: true, error: null })
       }
-      try {
-        const data = await fetchLearningPath(request, controller.signal)
+
+      const applySuccess = (data: AssessmentResponse) => {
         const pathModuleIds = extractGeneratedPathModules(data.recommendedModules ?? []).map(
           (m) => m.id,
         )
@@ -194,36 +205,64 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
           })
           void flushSyncQueueImmediate(syncUserId)
         }
-        return data
-      } catch (err) {
-        const canceled = isAbortError(err)
-        const soft = options?.soft
-        const message = canceled
-          ? en.api.requestCanceled
-          : err instanceof Error
-            ? err.message
-            : en.errors.learningPathFailed
-        setState((s) => ({
-          data: soft ? s.data : null,
-          loading: false,
-          error: canceled && soft ? null : message,
-        }))
-        if (!soft && !canceled) {
-          throw err instanceof Error ? err : new Error(message)
-        }
-        if (canceled && !soft) {
-          const e = new Error(message)
-          e.name = 'AbortError'
-          throw e
-        }
-        if (!canceled) {
-          throw err instanceof Error ? err : new Error(message)
-        }
-        return undefined
-      } finally {
-        window.clearTimeout(timeoutId)
-        if (inflightRef.current === controller) inflightRef.current = null
       }
+
+      let lastErr: unknown
+
+      for (let attempt = 0; attempt < LEARNING_PATH_MAX_ATTEMPTS; attempt++) {
+        if (attempt > 0) {
+          setGenerationHint('retry')
+        }
+
+        const controller = new AbortController()
+        inflightRef.current = controller
+        const timeoutId = window.setTimeout(() => {
+          controller.abort()
+        }, LEARNING_PATH_TIMEOUT_MS)
+
+        try {
+          const data = await fetchLearningPath(request, controller.signal)
+          setGenerationHint(null)
+          applySuccess(data)
+          return data
+        } catch (err) {
+          lastErr = err
+          if (userCanceledRef.current) break
+          const canRetry =
+            attempt < LEARNING_PATH_MAX_ATTEMPTS - 1 && isRetryableLearningPathError(err)
+          if (!canRetry) break
+        } finally {
+          window.clearTimeout(timeoutId)
+          if (inflightRef.current === controller) inflightRef.current = null
+        }
+      }
+
+      setGenerationHint(null)
+      const err = lastErr
+      const canceled = isAbortError(err) || userCanceledRef.current
+      const soft = options?.soft
+      const message = canceled
+        ? en.api.requestCanceled
+        : err instanceof Error
+          ? err.message
+          : en.errors.learningPathFailed
+      setState((s) => ({
+        data: soft ? s.data : null,
+        loading: false,
+        error: canceled && soft ? null : message,
+      }))
+      if (!soft && !canceled) {
+        throw err instanceof Error ? err : new Error(message)
+      }
+      if (canceled && !soft) {
+        const e = new Error(message)
+        e.name = 'AbortError'
+        throw e
+      }
+      if (!canceled) {
+        throw err instanceof Error ? err : new Error(message)
+      }
+      return undefined
     },
     [persist, storageId, syncUserId],
   )
@@ -268,8 +307,10 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
   }, [generate])
 
   const cancel = useCallback(() => {
+    userCanceledRef.current = true
     inflightRef.current?.abort()
     inflightRef.current = null
+    setGenerationHint(null)
   }, [])
 
   const reset = useCallback(() => {
@@ -287,5 +328,14 @@ export function useLearningPath({ storageId, syncUserId }: UseLearningPathOption
     setState({ data: null, loading: false, error: null })
   }, [cancel, storageId, syncUserId])
 
-  return { ...state, lastAssessment, hydrated, generate, generateNextPath, reset, cancel }
+  return {
+    ...state,
+    lastAssessment,
+    hydrated,
+    generationHint,
+    generate,
+    generateNextPath,
+    reset,
+    cancel,
+  }
 }

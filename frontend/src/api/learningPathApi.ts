@@ -40,6 +40,31 @@ function apiFailureMessage(err: unknown): string {
   return detail ?? err.message ?? en.errors.learningPathFailed
 }
 
+function isAbortError(err: unknown): boolean {
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException) {
+    return err.name === 'AbortError'
+  }
+  return (err as { name?: string } | null)?.name === 'AbortError'
+}
+
+/** コールドスタート等で 1 回リトライしてよいエラーか */
+export function isRetryableLearningPathError(err: unknown): boolean {
+  if (isAbortError(err)) return true
+  if (!(err instanceof Error)) return false
+  return err.message === en.api.proxyFailed || err.message === en.api.backendUnreachable
+}
+
+/** 診断画面マウント時に Render を起こす（失敗は無視） */
+export function prewarmBackendHealth(timeoutMs = 8_000): void {
+  const signal =
+    typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+      ? AbortSignal.timeout(timeoutMs)
+      : undefined
+  void fetch('/api/health', { method: 'GET', signal }).catch(() => {
+    /* pre-warm は best-effort */
+  })
+}
+
 /**
  * 診断フォームの送信結果をバックエンドに送り、推奨モジュール一覧を取得する。
  * @param signal AbortController の signal。タイムアウトや「Cancel」ボタンで中断する用途。

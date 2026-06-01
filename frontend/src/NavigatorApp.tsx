@@ -38,7 +38,7 @@ export default function NavigatorApp() {
     bumpAppLaunchCount(storageId)
   }, [storageId])
 
-  const { data, error, generate, generateNextPath, reset, cancel, lastAssessment, hydrated, loading } =
+  const { data, error, generate, generateNextPath, reset, cancel, lastAssessment, hydrated, loading, generationHint } =
     useLearningPath({ storageId, syncUserId })
 
   const [retakeConfirmOpen, setRetakeConfirmOpen] = useState(false)
@@ -118,7 +118,23 @@ export default function NavigatorApp() {
   }
 
   if (loading && !data) {
-    return <PathGenerationLoadingScreen onCancel={handleCancelGeneration} />
+    const loadingTitle =
+      generationHint === 'retry' ? en.pathGeneration.retryTitle : en.pathGeneration.title
+    const loadingSubtitle =
+      generationHint === 'retry'
+        ? en.pathGeneration.retrySubtitle
+        : import.meta.env.PROD
+          ? en.pathGeneration.coldStartSubtitle
+          : en.pathGeneration.subtitle
+
+    return (
+      <PathGenerationLoadingScreen
+        onCancel={handleCancelGeneration}
+        title={loadingTitle}
+        subtitle={loadingSubtitle}
+        cancelLabel={en.common.cancel}
+      />
+    )
   }
 
   return (

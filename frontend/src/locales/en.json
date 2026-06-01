@@ -60,6 +60,13 @@
     "pathGenerationCanceled": "Path generation canceled. You can try again anytime.",
     "noModulesRemaining": "You have completed every module available for this assessment. Retake the assessment if your goals have changed."
   },
+  "pathGeneration": {
+    "title": "Building your learning path…",
+    "subtitle": "This usually takes a few seconds.",
+    "coldStartSubtitle": "If the server was idle, the first request can take up to 1–2 minutes.",
+    "retryTitle": "Waking the server…",
+    "retrySubtitle": "Retrying now that the backend is starting. Please wait a moment."
+  },
   "toast": {
     "feedbackSaveFailed": "Could not save your feedback. Completion is recorded locally.",
     "todoSaveFailed": "Could not save the checklist update. Check your connection.",

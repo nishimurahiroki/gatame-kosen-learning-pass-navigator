@@ -7,7 +7,7 @@ interface PathGenerationLoadingScreenProps {
 
 /**
  * 学習パス生成中のフルスクリーンローディング。
- * 25 秒の自動タイムアウトとは別に、ユーザーが任意に中断できる「Cancel」ボタンを最初から表示する。
+ * 本番では最大 90 秒 × 最大 2 回の試行。ユーザーは「Cancel」で任意に中断できる。
  */
 export default function PathGenerationLoadingScreen({
   onCancel,
