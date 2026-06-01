@@ -13,9 +13,12 @@ import { setResumeLocalIntent } from '../utils/resumeIntent'
 
 type PrimaryCta = 'start' | 'resumeLocal' | 'resumeMember'
 
+/** ヒーロー（1画面分）のみに適用。ページ全体に bg-cover すると LP 分の高さまで拡大され画像が判別不能になる */
+const topPageHeroBgClass = 'bg-gatame-midnight bg-cover bg-center bg-no-repeat'
+
 /** 背景画像の上でも読めるよう TopPage 専用のコントラスト */
 const topPageBgOverlayClass =
-  'pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050a14]/88 via-[#0a1128]/82 to-[#050a14]/92'
+  'pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050a14]/88 via-[#0a1128]/82 to-[#050a14]/95'
 
 const topPageContentPanelClass =
   'rounded-3xl border border-white/15 bg-[#0a1128]/88 px-6 py-8 shadow-[0_24px_64px_rgba(0,0,0,0.65)] backdrop-blur-md sm:px-8'
@@ -101,7 +104,7 @@ export default function TopPage() {
   if (authLoading || (memberUserId && checkingRemote)) {
     return (
       <div
-        className="relative flex min-h-screen items-center justify-center bg-gatame-navy bg-cover bg-center"
+        className={`relative flex min-h-screen items-center justify-center ${topPageHeroBgClass}`}
         style={{ backgroundImage: `url(${topPageBgSrc})` }}
       >
         <div className={topPageBgOverlayClass} aria-hidden />
@@ -115,12 +118,13 @@ export default function TopPage() {
   }
 
   return (
-    <div
-      className="relative min-h-screen bg-gatame-midnight bg-cover bg-center px-4 py-12"
-      style={{ backgroundImage: `url(${topPageBgSrc})` }}
-    >
-      <div className={topPageBgOverlayClass} aria-hidden />
-      <section className="relative z-10 flex min-h-[100svh] items-center justify-center">
+    <div className="bg-gatame-midnight">
+      <section
+        className={`relative isolate flex min-h-[100svh] items-center justify-center px-4 py-12 ${topPageHeroBgClass}`}
+        style={{ backgroundImage: `url(${topPageBgSrc})` }}
+      >
+        <div className={topPageBgOverlayClass} aria-hidden />
+        <div className="relative z-10 flex w-full items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -178,9 +182,10 @@ export default function TopPage() {
             <p className="mt-4 text-[11px] text-white/65">{en.top.signedInHint}</p>
           ) : null}
         </motion.div>
+        </div>
       </section>
 
-      <section className="relative z-10 mx-auto w-full max-w-6xl pb-14">
+      <section className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-14 pt-10">
         <div className="mb-8 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-gatame-gold">{en.top.lpBadge}</p>
           <h2 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-4xl">
