@@ -16,7 +16,36 @@
     "saveProgressPromptTitle": "Keep your path safe",
     "saveProgressPromptNotNow": "Not now",
     "saveProgressPromptDrawer": "Your path and progress are only on this device until you sign in. Save to the cloud to continue on any device.",
-    "saveProgressPromptTodo": "Great start on your checklist. Sign in to save your progress so you will not lose it."
+    "saveProgressPromptTodo": "Great start on your checklist. Sign in to save your progress so you will not lose it.",
+    "ctaStartAssessmentNow": "Start your assessment now",
+    "lpBadge": "How it works",
+    "lpHeading": "Train with clarity, not guesswork",
+    "lpSubheading": "Build a personalized roadmap, follow a clear daily plan, and keep improving from anywhere.",
+    "lpFeatures": [
+      {
+        "kicker": "Feature 01",
+        "title": "Personalized Roadmap",
+        "body": "Answer a short assessment and get a 4-module learning path tailored to your level, goals, and training style.",
+        "imagePlaceholder": "Smartphone mockup — Personalized Roadmap (image coming soon)"
+      },
+      {
+        "kicker": "Feature 02",
+        "title": "Plan Today, Review After Training",
+        "body": "Know exactly what to work on before class, then review what changed after training. No guesswork—just a clear loop you can repeat every session.",
+        "imagePlaceholder": "Smartphone mockup — Daily plan & review (image coming soon)"
+      },
+      {
+        "kicker": "Feature 03",
+        "title": "Anytime, Anywhere",
+        "body": "Open your path on any device and continue where you left off. Your roadmap stays with you from home to the gym.",
+        "imagePlaceholder": "Smartphone mockup — Anytime, Anywhere (image coming soon)"
+      }
+    ],
+    "lpMembershipKicker": "Annual Membership",
+    "lpMembershipHeading": "Annual Membership + Learning Path",
+    "lpMembershipBody": "Unlock 150+ technique videos, then let your Learning Path pick the right videos for your current needs—so every session moves you forward.",
+    "lpMembershipCta": "See Annual Membership options",
+    "lpMembershipImagePlaceholder": "Smartphone mockup — Membership + Learning Path (image coming soon)"
   },
   "app": {
     "title": "Learning Path Navigator",
