@@ -1,7 +1,7 @@
 import { useMembershipAccess } from '../../context/MembershipAccessContext'
+import { GATAME_ANNUAL_JOIN_CHECKOUT_URL } from '../../constants/kajabiCheckout'
 import { todaysFocusDrawerButtonClass } from '../../constants/brandTheme'
 import en from '../../locales/en.json'
-import { openMembershipOffer } from '../../utils/membershipOfferEvent'
 import { KAJABI_MEMBER_LOGIN_URL } from '../../utils/membershipSelfDeclareStorage'
 
 export type ReferenceVideoAccessPromoProps = {
@@ -32,7 +32,9 @@ export default function ReferenceVideoAccessPromo({ videoUrl: _videoUrl }: Refer
   return (
     <button
       type="button"
-      onClick={() => openMembershipOffer()}
+      onClick={() =>
+        window.open(GATAME_ANNUAL_JOIN_CHECKOUT_URL, '_blank', 'noopener,noreferrer')
+      }
       className={footerBtnClass}
       aria-label={`${en.pathDrawer.getMembershipCta} — ${en.pathDrawer.getMembershipSubcopy}`}
     >
