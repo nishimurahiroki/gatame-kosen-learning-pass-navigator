@@ -22,6 +22,8 @@ import {
   ensurePathSessionAligned,
   GATAME_MODULE_PROGRESS_CHANGED_EVENT,
   loadPathSessionCompletedIds,
+  loadPathSessionCheckedByModule,
+  savePathSessionCheckedByModule,
   savePathSessionCompletedIds,
   progressSessionId,
   addCompletedBbsLevel,
@@ -223,6 +225,17 @@ function VerticalPathInner({
     [],
   )
 
+  const persistGuestCheckedByModule = useCallback(() => {
+    if (userId || !assessmentRequest || pathModuleIds.length === 0) return
+    const checkedByModule: Record<string, Record<string, boolean>> = {}
+    for (const mid of pathModuleIds) {
+      const checked = progressByModuleRef.current[mid]?.checked
+      if (!checked || Object.keys(checked).length === 0) continue
+      checkedByModule[mid] = { ...checked }
+    }
+    savePathSessionCheckedByModule(assessmentRequest, pathModuleIds, checkedByModule)
+  }, [assessmentRequest, pathModuleIds, userId])
+
   const [feedbackModuleId, setFeedbackModuleId] = useState<string | null>(null)
 
   const todoItemsByModule = useMemo(() => {
@@ -312,6 +325,19 @@ function VerticalPathInner({
     ensurePathSessionAligned(assessmentRequest, pathModuleIds)
     const localIds = loadPathSessionCompletedIds(assessmentRequest, pathModuleIds)
     setCompletedIds(localIds)
+
+    if (!userId) {
+      const storedChecked = loadPathSessionCheckedByModule(assessmentRequest, pathModuleIds)
+      setProgressByModule((prev) => {
+        const next = { ...prev }
+        for (const [mid, checked] of Object.entries(storedChecked)) {
+          const cur = next[mid] ?? { checked: {}, memo: '' }
+          next[mid] = { ...cur, checked: { ...checked } }
+        }
+        progressByModuleRef.current = next
+        return next
+      })
+    }
 
     if (!userId) return
     const fp = progressSessionId(assessmentRequest)
@@ -516,12 +542,15 @@ function VerticalPathInner({
         if (!checked) delete currentChecked[itemId]
         return { ...cur, checked: currentChecked }
       })
-      if (!userId) return
+      if (!userId) {
+        persistGuestCheckedByModule()
+        return
+      }
       scheduleModuleDetailCheckedSync(userId, sessionKey, moduleId, () =>
         readModuleDetailSlice(progressByModuleRef.current, moduleId),
       )
     },
-    [patchProgressByModule, sessionKey, userId, onGuestEngagement],
+    [patchProgressByModule, persistGuestCheckedByModule, sessionKey, userId, onGuestEngagement],
   )
 
   const handleMemoSave = useCallback(
@@ -781,12 +810,15 @@ function VerticalPathInner({
         if (!checked) delete currentChecked[techniqueId]
         return { ...cur, checked: currentChecked }
       })
-      if (!userId) return
+      if (!userId) {
+        persistGuestCheckedByModule()
+        return
+      }
       scheduleModuleDetailCheckedSync(userId, sessionKey, moduleId, () =>
         readModuleDetailSlice(progressByModuleRef.current, moduleId),
       )
     },
-    [patchProgressByModule, sessionKey, userId],
+    [patchProgressByModule, persistGuestCheckedByModule, sessionKey, userId],
   )
 
   const practiceCheck = usePracticeCheck({

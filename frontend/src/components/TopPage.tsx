@@ -17,7 +17,10 @@ import { setResumeLocalIntent } from '../utils/resumeIntent'
 
 type PrimaryCta = 'start' | 'resumeLocal' | 'resumeMember'
 
-/** ヒーロー（1画面分）のみに適用。ページ全体に bg-cover すると LP 分の高さまで拡大され画像が判別不能になる */
+/** ヒーロー高さ: モバイルは全画面、md+ は下部 LP が覗く分だけ短くする */
+const topPageHeroSectionClass =
+  'relative isolate flex min-h-[100svh] md:min-h-[calc(100svh-8.5rem)] items-center justify-center px-4 py-12 pb-16 md:pb-20'
+
 const topPageHeroBgClass = 'bg-gatame-midnight bg-cover bg-center bg-no-repeat'
 
 /** 背景写真の上にだけかかる暗幕。薄くする場合はここだけ編集（/0〜100。下げるほど写真が見える） */
@@ -37,6 +40,32 @@ const topPageSecondaryCtaClass =
 /** LP 機能行: 行幅を抑えた均等2列（1fr+固定px だと PC でテキストと画像が離れすぎる） */
 const topPageLpFeatureRowClass =
   'mx-auto grid w-full max-w-5xl grid-cols-1 items-center gap-9 border-b border-white/10 py-10 last:border-b-0 md:grid-cols-2 md:gap-x-5 md:py-12 lg:max-w-6xl lg:gap-x-6'
+
+function TopPageScrollCue() {
+  return (
+    <a
+      href="#top-lp"
+      className="absolute bottom-3 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-1.5 text-gatame-gold/75 transition-colors hover:text-gatame-goldHi md:flex"
+      aria-label={en.top.scrollExploreHint}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-[0.22em]">
+        {en.top.scrollExploreHint}
+      </span>
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5 animate-bounce"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M12 5v14M5 12l7 7 7-7" />
+      </svg>
+    </a>
+  )
+}
 
 function LpBulletList({ items }: { items: string[] }) {
   return (
@@ -140,7 +169,7 @@ export default function TopPage() {
   if (authLoading || (memberUserId && checkingRemote)) {
     return (
       <div
-        className={`relative flex min-h-screen items-center justify-center ${topPageHeroBgClass}`}
+        className={`relative flex min-h-screen items-center justify-center ${topPageHeroBgClass} md:min-h-[calc(100svh-8.5rem)]`}
         style={{ backgroundImage: `url(${topPageBgSrc})` }}
       >
         <div className={topPageBgOverlayClass} aria-hidden />
@@ -156,10 +185,14 @@ export default function TopPage() {
   return (
     <div className="bg-gatame-midnight">
       <section
-        className={`relative isolate flex min-h-[100svh] items-center justify-center px-4 py-12 ${topPageHeroBgClass}`}
+        className={`${topPageHeroSectionClass} ${topPageHeroBgClass}`}
         style={{ backgroundImage: `url(${topPageBgSrc})` }}
       >
         <div className={topPageBgOverlayClass} aria-hidden />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-28 bg-gradient-to-t from-gatame-midnight via-gatame-midnight/80 to-transparent md:block"
+          aria-hidden
+        />
         <div className="relative z-10 flex w-full items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -219,9 +252,13 @@ export default function TopPage() {
           ) : null}
         </motion.div>
         </div>
+        <TopPageScrollCue />
       </section>
 
-      <section className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
+      <section
+        id="top-lp"
+        className="relative z-10 mx-auto w-full max-w-6xl scroll-mt-4 px-4 pb-12 pt-4 sm:px-6 md:pt-2 lg:px-8"
+      >
         <div className="mb-6 text-center md:mb-8">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gatame-gold">{en.top.lpBadge}</p>
           <h2 className="mt-2 text-xl font-black tracking-tight text-white sm:text-3xl">

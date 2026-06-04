@@ -42,27 +42,99 @@ type PathSessionPayloadV1 = {
   completedIds: string[]
 }
 
+type PathSessionPayloadV2 = {
+  v: 2
+  pathSignature: string
+  completedIds: string[]
+  checkedByModule: Record<string, Record<string, boolean>>
+}
+
+function filterCheckedOnPath(
+  checkedByModule: Record<string, Record<string, boolean>>,
+  onPath: Set<string>,
+): Record<string, Record<string, boolean>> {
+  const out: Record<string, Record<string, boolean>> = {}
+  for (const [moduleId, checked] of Object.entries(checkedByModule)) {
+    if (!onPath.has(moduleId) || !checked || typeof checked !== 'object') continue
+    const filtered: Record<string, boolean> = {}
+    for (const [itemId, value] of Object.entries(checked)) {
+      if (value) filtered[itemId] = true
+    }
+    if (Object.keys(filtered).length > 0) out[moduleId] = filtered
+  }
+  return out
+}
+
 /** 現在パス上のモジュール ID からセッション署名を生成（パス再生成時に進捗を切り替える） */
 export function pathModuleSignature(pathModuleIds: string[]): string {
   return hashFingerprint([...pathModuleIds].sort().join('\u0001'))
 }
 
-function readSessionPayload(raw: string): PathSessionPayloadV1 | string[] | null {
+function readSessionPayload(raw: string): PathSessionPayloadV1 | PathSessionPayloadV2 | string[] | null {
   try {
     const parsed = JSON.parse(raw) as unknown
     if (Array.isArray(parsed)) return parsed
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      (parsed as PathSessionPayloadV1).v === 1 &&
-      typeof (parsed as PathSessionPayloadV1).pathSignature === 'string' &&
-      Array.isArray((parsed as PathSessionPayloadV1).completedIds)
-    ) {
-      return parsed as PathSessionPayloadV1
+    if (!parsed || typeof parsed !== 'object') return null
+    const obj = parsed as PathSessionPayloadV1 | PathSessionPayloadV2
+    if (obj.v === 2 && typeof obj.pathSignature === 'string' && Array.isArray(obj.completedIds)) {
+      return {
+        v: 2,
+        pathSignature: obj.pathSignature,
+        completedIds: obj.completedIds,
+        checkedByModule:
+          obj.checkedByModule && typeof obj.checkedByModule === 'object' ? obj.checkedByModule : {},
+      }
+    }
+    if (obj.v === 1 && typeof obj.pathSignature === 'string' && Array.isArray(obj.completedIds)) {
+      return obj as PathSessionPayloadV1
     }
     return null
   } catch {
     return null
+  }
+}
+
+function readAlignedSessionPayload(
+  req: AssessmentRequest,
+  pathModuleIds: string[],
+): PathSessionPayloadV2 | null {
+  const expectedSig = pathModuleSignature(pathModuleIds)
+  const onPath = new Set(pathModuleIds)
+  try {
+    const raw = localStorage.getItem(storageKey(req))
+    if (!raw) return null
+    const payload = readSessionPayload(raw)
+    if (!payload || Array.isArray(payload)) return null
+    if (payload.pathSignature !== expectedSig) return null
+    if (payload.v === 2) {
+      return {
+        v: 2,
+        pathSignature: payload.pathSignature,
+        completedIds: payload.completedIds.filter(
+          (id): id is string => typeof id === 'string' && onPath.has(id),
+        ),
+        checkedByModule: filterCheckedOnPath(payload.checkedByModule ?? {}, onPath),
+      }
+    }
+    return {
+      v: 2,
+      pathSignature: payload.pathSignature,
+      completedIds: payload.completedIds.filter(
+        (id): id is string => typeof id === 'string' && onPath.has(id),
+      ),
+      checkedByModule: {},
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeSessionPayload(req: AssessmentRequest, payload: PathSessionPayloadV2): void {
+  try {
+    localStorage.setItem(storageKey(req), JSON.stringify(payload))
+    notifyModuleProgressChanged()
+  } catch {
+    /* ignore */
   }
 }
 
@@ -152,17 +224,45 @@ export function savePathSessionCompletedIds(
 ): void {
   if (!req || pathModuleIds.length === 0) return
   const onPath = new Set(pathModuleIds)
-  const payload: PathSessionPayloadV1 = {
-    v: 1,
+  const aligned = readAlignedSessionPayload(req, pathModuleIds)
+  const payload: PathSessionPayloadV2 = {
+    v: 2,
     pathSignature: pathModuleSignature(pathModuleIds),
     completedIds: [...ids].filter((id) => onPath.has(id)),
+    checkedByModule: aligned?.checkedByModule ?? {},
   }
-  try {
-    localStorage.setItem(storageKey(req), JSON.stringify(payload))
-    notifyModuleProgressChanged()
-  } catch {
-    /* ignore */
+  writeSessionPayload(req, payload)
+}
+
+/**
+ * ゲスト向け: 現在パス上のモジュール TODO チェック（localStorage）。
+ * パス署名が一致しない場合は空（次パス生成直後の誤復元を防ぐ）。
+ */
+export function loadPathSessionCheckedByModule(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+): Record<string, Record<string, boolean>> {
+  if (!req || pathModuleIds.length === 0) return {}
+  const aligned = readAlignedSessionPayload(req, pathModuleIds)
+  return aligned?.checkedByModule ?? {}
+}
+
+/** ゲスト向け: モジュール TODO チェックを localStorage に保存（完了 ID は保持） */
+export function savePathSessionCheckedByModule(
+  req: AssessmentRequest | null,
+  pathModuleIds: string[],
+  checkedByModule: Record<string, Record<string, boolean>>,
+): void {
+  if (!req || pathModuleIds.length === 0) return
+  const onPath = new Set(pathModuleIds)
+  const aligned = readAlignedSessionPayload(req, pathModuleIds)
+  const payload: PathSessionPayloadV2 = {
+    v: 2,
+    pathSignature: pathModuleSignature(pathModuleIds),
+    completedIds: aligned?.completedIds ?? [],
+    checkedByModule: filterCheckedOnPath(checkedByModule, onPath),
   }
+  writeSessionPayload(req, payload)
 }
 
 /** VerticalPath の完了トグル保存後に発火（Profile 進捗などが同一タブで追従する） */

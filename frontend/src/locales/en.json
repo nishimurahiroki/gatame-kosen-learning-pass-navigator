@@ -61,7 +61,8 @@
       "Video picks matched to your Learning Path",
       "Black Belt System promotion codes—$100 off Kyukyu and $200 off Sankyu"
     ],
-    "lpMembershipCta": "See Annual Membership options"
+    "lpMembershipCta": "See Annual Membership options",
+    "scrollExploreHint": "Scroll to explore"
   },
   "app": {
     "title": "Learning Path Navigator",
