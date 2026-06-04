@@ -9,6 +9,7 @@ import SaveProgressRecommendCard from './components/common/SaveProgressRecommend
 import { showToast } from './components/common/Toast'
 import AppBottomBar from './components/layout/AppBottomBar'
 import AppBrandLogo from './components/layout/AppBrandLogo'
+import { GATAME_KOSEN_ONLINE_HOME_URL } from './constants/brandAssets'
 import AnnualMembershipAskModal from './components/membership/AnnualMembershipAskModal'
 import VerticalPathContainer from './components/skillmap/VerticalPathContainer'
 import { MembershipAccessProvider, useMembershipAccess } from './context/MembershipAccessContext'
@@ -148,7 +149,13 @@ export default function NavigatorApp() {
             onPathView ? 'mb-3 flex items-center justify-center gap-2 sm:gap-3' : 'mb-10 text-center'
           }`}
         >
-          {onPathView ? <AppBrandLogo variant="inline" tappableToHome /> : null}
+          {onPathView ? (
+            <AppBrandLogo
+              variant="inline"
+              tappableToHome
+              tapHref={GATAME_KOSEN_ONLINE_HOME_URL}
+            />
+          ) : null}
           <h1
             className={
               onPathView

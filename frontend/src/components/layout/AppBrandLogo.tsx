@@ -6,30 +6,48 @@ interface AppBrandLogoProps {
    * `inline`: 親レイアウト内のフロー要素として描画。Pass UI のヘッダー左に並べる用途。
    */
   variant?: 'fixed' | 'inline'
-  /** true のときロゴタップでトップへ戻る */
+  /** true のときロゴタップで tapHref へ遷移 */
   tappableToHome?: boolean
+  /** tappableToHome 時の遷移先（省略時はアプリトップ `/`） */
+  tapHref?: string
 }
 
-export default function AppBrandLogo({ variant = 'fixed', tappableToHome = false }: AppBrandLogoProps) {
-  const goHome = () => window.location.assign('/')
+const logoImgClassInline = 'h-7 w-auto object-contain object-left sm:h-9'
+const logoImgClassFixed = 'h-8 w-auto max-w-[min(36vw,140px)] object-contain object-left sm:h-12 md:h-14'
+
+function logoLinkProps(href: string) {
+  const external = href.startsWith('http')
+  return {
+    href,
+    ...(external
+      ? { target: '_blank' as const, rel: 'noopener noreferrer' }
+      : {}),
+    'aria-label': external ? 'Visit Gatame Kosen Online (opens in new tab)' : 'Go to top page',
+  }
+}
+
+export default function AppBrandLogo({
+  variant = 'fixed',
+  tappableToHome = false,
+  tapHref = '/',
+}: AppBrandLogoProps) {
+  const linkClass =
+    variant === 'inline'
+      ? 'shrink-0 rounded-md p-0.5 transition-opacity hover:opacity-85 active:opacity-75'
+      : 'rounded-md p-0.5 transition-opacity hover:opacity-85 active:opacity-75'
 
   if (variant === 'inline') {
     if (tappableToHome) {
       return (
-        <button
-          type="button"
-          onClick={goHome}
-          className="shrink-0 rounded-md p-0.5 transition-opacity hover:opacity-85 active:opacity-75"
-          aria-label="Go to top page"
-        >
+        <a {...logoLinkProps(tapHref)} className={linkClass}>
           <img
             src={GATAME_LOGO_SRC}
             alt=""
             aria-hidden
-            className="h-7 w-auto object-contain object-left sm:h-9"
+            className={logoImgClassInline}
             draggable={false}
           />
-        </button>
+        </a>
       )
     }
     return (
@@ -37,7 +55,7 @@ export default function AppBrandLogo({ variant = 'fixed', tappableToHome = false
         src={GATAME_LOGO_SRC}
         alt=""
         aria-hidden
-        className="h-7 w-auto shrink-0 object-contain object-left sm:h-9"
+        className={`${logoImgClassInline} shrink-0`}
         draggable={false}
       />
     )
@@ -46,19 +64,14 @@ export default function AppBrandLogo({ variant = 'fixed', tappableToHome = false
   if (tappableToHome) {
     return (
       <div className="fixed left-0 top-0 z-[25] p-1 sm:p-3">
-        <button
-          type="button"
-          onClick={goHome}
-          className="rounded-md p-0.5 transition-opacity hover:opacity-85 active:opacity-75"
-          aria-label="Go to top page"
-        >
+        <a {...logoLinkProps(tapHref)} className={linkClass}>
           <img
             src={GATAME_LOGO_SRC}
             alt=""
-            className="h-8 w-auto max-w-[min(36vw,140px)] object-contain object-left sm:h-12 md:h-14"
+            className={logoImgClassFixed}
             draggable={false}
           />
-        </button>
+        </a>
       </div>
     )
   }
@@ -68,7 +81,7 @@ export default function AppBrandLogo({ variant = 'fixed', tappableToHome = false
       <img
         src={GATAME_LOGO_SRC}
         alt=""
-        className="h-8 w-auto max-w-[min(36vw,140px)] object-contain object-left sm:h-12 md:h-14"
+        className={logoImgClassFixed}
         draggable={false}
       />
     </div>
