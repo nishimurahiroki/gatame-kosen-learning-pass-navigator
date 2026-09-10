@@ -117,6 +117,7 @@ https://gatame-kosen-learning-pass-navigato.vercel.app/
 などを質問します。
 
 診断結果を学習パス生成の入力として利用します。
+
 <img width="593" height="590" alt="スクリーンショット 2026-09-10 181907" src="https://github.com/user-attachments/assets/d3f3fc16-43d7-4c1d-bcd6-17db1a9a693a" />
 
 ---
@@ -178,6 +179,7 @@ ADVANCED
 **動画を見る → 道場で試す**
 
 という行動につなげます。
+
 <img width="443" height="302" alt="スクリーンショット 2026-09-10 181807" src="https://github.com/user-attachments/assets/48525b4e-be53-4c4b-be9b-cbd4b60ae9e3" />
 
 ---
